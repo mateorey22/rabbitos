@@ -846,7 +846,8 @@
                 }
 
                 if (needsCamera) {
-                    await startVideoStream(screenName); // Start or ensure stream is running and attached
+                    // Pass the correct screen name to startVideoStream
+                    await startVideoStream(screenName);
                 } else if (cameraWasActive) {
                     stopVideoStream(); // Stop stream fully if leaving a camera screen
                 }
@@ -1314,9 +1315,13 @@
             nextTrackButton?.addEventListener('click', () => console.log("Next track (simulation)"));
 
             // --- Camera Management ---
-            async function startVideoStream(targetScreenName) {
-                const targetContainer = screenName === 'vision' ? visionCameraContainer : (screenName === 'look_and_ask' ? lookCameraContainer : null);
-                if (!targetContainer) return false; // Should not happen if called correctly
+            async function startVideoStream(targetScreenName) { // targetScreenName is the parameter
+                // FIX: Use targetScreenName to determine the container
+                const targetContainer = targetScreenName === 'vision' ? visionCameraContainer : (targetScreenName === 'look_and_ask' ? lookCameraContainer : null);
+                if (!targetContainer) {
+                     console.error(`No valid target container found for screen: ${targetScreenName}`);
+                     return false;
+                }
 
                 // If stream already exists and is attached to the correct container, just ensure it's visible
                 if (videoStream && videoElement.parentElement === targetContainer) {
