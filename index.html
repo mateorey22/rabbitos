@@ -755,7 +755,7 @@
             // --- Configuration ---
             // WARNING: Storing API keys client-side is insecure. Use a backend proxy in production.
              const GEMINI_API_KEY = 'AIzaSyBW5xJAUSzhJP5n5p8znA39QFDR8JqtwPY'; // REPLACE WITH YOUR ACTUAL KEY
-            const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+            const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
             const GEMINI_SAFETY_SETTINGS = [
                 { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
                 { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
