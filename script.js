@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Configuration ---
     // ATTENTION : Stocker la clé API directement dans le code front-end n'est PAS SÉCURISÉ.
     // Pour une application réelle, utilisez un backend pour gérer les appels API.
-    const GEMINI_API_KEY = 'YOUR_API_KEY'; // REMPLACEZ PAR VOTRE VRAIE CLÉ API GEMINI
+    const GEMINI_API_KEY = 'AIzaSyBW5xJAUSzhJP5n5p8znA39QFDR8JqtwPY'; // REMPLACEZ PAR VOTRE VRAIE CLÉ API GEMINI
     const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
 
     // --- Fonctions ---
@@ -323,11 +323,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /**
      * Démarre une session d'écoute SpeechRecognition et retourne une promesse.
+     * Inclut une demande explicite de permission microphone si nécessaire.
      * @returns {Promise<string>} Une promesse qui résout avec le texte reconnu ou rejette avec une erreur.
      */
-    function startSpeechRecognition() {
+    async function startSpeechRecognition() { // Rendre la fonction async
         // Retourner une nouvelle promesse à chaque appel
-        return new Promise((resolve, reject) => {
+        return new Promise(async (resolve, reject) => { // Rendre l'exécuteur de promesse async
             if (!speechApiAvailable || !recognition) {
                 reject(new Error("Reconnaissance vocale non initialisée ou non supportée."));
                 return;
@@ -343,20 +344,60 @@ document.addEventListener('DOMContentLoaded', () => {
                  return;
              }
 
-            console.log("Tentative de démarrage de l'écoute (recognition.start())...");
-            // Stocker les callbacks de la promesse pour les utiliser dans les événements recognition
-            speechPromiseCallbacks = { resolve, reject };
+            // --- Nouvelle logique pour demander explicitement la permission si nécessaire ---
+            // Si l'état de la permission est inconnu (probablement 'prompt' ou Permissions API non supportée)
+            if (permissionGranted === null || (navigator.permissions && typeof navigator.permissions.query !== 'function')) {
+                console.log("Permission microphone inconnue ou Permissions API non supportée, tentative de demande via getUserMedia...");
+                try {
+                    // Tenter d'obtenir un flux audio pour déclencher le prompt de permission
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    console.log("getUserMedia successful, permission granted.");
+                    permissionGranted = true; // Mettre à jour l'état
+                    updatePermissionStatus("Prêt."); // Mettre à jour le message
+                    // Arrêter immédiatement le flux car nous n'en avons pas besoin ici, juste pour le prompt
+                    stream.getTracks().forEach(track => track.stop());
+                } catch (err) {
+                    console.error("getUserMedia failed:", err);
+                    permissionGranted = false; // Mettre à jour l'état
+                    let userMessage = "Impossible d'accéder au microphone.";
+                    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                        userMessage = "L'accès au microphone a été refusé. Veuillez l'autoriser dans les paramètres de votre navigateur pour ce site.";
+                    } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                         userMessage = "Aucun microphone trouvé.";
+                    } else if (err.name === 'NotReadableError' || err.name === 'OverconstrainedError') {
+                         userMessage = "Le microphone est peut-être déjà utilisé par une autre application.";
+                    } else {
+                         userMessage = `Erreur technique microphone: ${err.message || err.name}`;
+                    }
+                    updatePermissionStatus(userMessage, true);
+                    if (pttButton) pttButton.disabled = true;
+                    reject(new Error(userMessage)); // Rejeter la promesse
+                    return; // Arrêter l'exécution si getUserMedia échoue
+                }
+            }
+            // --- Fin de la nouvelle logique ---
 
-            try {
-                // C'est ici que le navigateur demandera la permission si state === 'prompt'
-                recognition.start();
-                // Le passage à l'état 'listening' est géré par recognition.onstart
-            } catch (e) {
-                console.error("Erreur immédiate lors de l'appel à recognition.start():", e);
-                recognitionActive = false; // Assurer la désactivation
-                speechPromiseCallbacks = null; // Nettoyer
-                // Rejeter la promesse immédiatement
-                reject(new Error(`Erreur technique au démarrage: ${e.message || e.name}`));
+            // Si la permission est maintenant accordée (soit initialement, soit via getUserMedia)
+            if (permissionGranted === true) {
+                console.log("Tentative de démarrage de l'écoute (recognition.start())...");
+                // Stocker les callbacks de la promesse pour les utiliser dans les événements recognition
+                speechPromiseCallbacks = { resolve, reject };
+
+                try {
+                    // recognition.start() peut encore déclencher un prompt dans certains cas,
+                    // mais getUserMedia l'aura déjà géré si permissionGranted était null.
+                    recognition.start();
+                    // Le passage à l'état 'listening' est géré par recognition.onstart
+                } catch (e) {
+                    console.error("Erreur immédiate lors de l'appel à recognition.start():", e);
+                    recognitionActive = false; // Assurer la désactivation
+                    speechPromiseCallbacks = null; // Nettoyer
+                    // Rejeter la promesse immédiatement
+                    reject(new Error(`Erreur technique au démarrage: ${e.message || e.name}`));
+                }
+            } else {
+                 // Si permissionGranted est false après la vérification/tentative
+                 reject(new Error("Accès microphone non accordé."));
             }
         });
     }
