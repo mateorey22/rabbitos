@@ -1,0 +1,515 @@
+/* Variables globales */
+:root {
+    --rabbit-orange: #ff7e00;
+    --off-white: #f8f8f8;
+    --light-gray: #e0e0e0;
+    --medium-gray: #cccccc;
+    --dark-gray: #333333;
+    --device-gray: #d0d0d0;
+    --error-red: #d9534f; /* Couleur pour les erreurs */
+}
+
+/* Styles de base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--off-white);
+    color: var(--dark-gray);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+    -webkit-tap-highlight-color: transparent; /* Empêche le flash bleu sur mobile */
+}
+
+/* Container du dispositif */
+.device-container {
+    width: 100%;
+    max-width: 360px; /* Limite la largeur max */
+    margin: 0 auto;
+}
+
+.rabbit-device {
+    background-color: var(--device-gray);
+    border-radius: 24px;
+    padding: 16px;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px; /* Espace entre l'écran et les contrôles */
+}
+
+/* Écran principal */
+.main-display {
+    background-color: var(--off-white);
+    border-radius: 16px;
+    width: 100%;
+    aspect-ratio: 1 / 1; /* Format carré */
+    overflow: hidden; /* Cache le contenu qui dépasse */
+    position: relative; /* Pour positionner les écrans */
+    box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.1);
+}
+
+/* Écrans (général) */
+.screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* Centre verticalement par défaut */
+    align-items: center; /* Centre horizontalement par défaut */
+    padding: 20px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
+    transform: translateX(20px); /* Légère translation pour l'effet d'entrée */
+    overflow-y: auto; /* Permet le défilement si le contenu dépasse */
+}
+
+.active-screen {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(0); /* Annule la translation */
+}
+
+/* Bouton Retour (commun à plusieurs écrans) */
+.back-button {
+    margin-top: auto; /* Pousse le bouton vers le bas */
+    padding: 8px 16px;
+    background-color: var(--medium-gray);
+    border: none;
+    border-radius: 4px;
+    color: var(--dark-gray);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-size: 14px;
+    display: inline-flex; /* Pour aligner l'icône et le texte */
+    align-items: center;
+    gap: 5px; /* Espace entre icône et texte */
+}
+
+.back-button:hover {
+    background-color: var(--light-gray);
+}
+
+/* Écran d'accueil */
+.home-screen {
+    text-align: center;
+}
+
+.greeting {
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.instruction {
+    font-size: 16px;
+    color: #666;
+    margin-bottom: 15px;
+}
+
+.permission-status {
+    font-size: 12px;
+    color: #666; /* Couleur par défaut */
+    margin-top: 10px;
+    min-height: 1.2em; /* Réserve un peu d'espace */
+    font-weight: 500;
+}
+/* Style spécifique pour les erreurs de permission */
+.permission-status.error {
+    color: var(--error-red);
+    font-weight: 600;
+}
+
+
+/* Écran d'écoute */
+.listening-screen {
+    justify-content: center;
+}
+
+.listening-indicator {
+    text-align: center;
+}
+
+.listening-text {
+    font-size: 18px;
+    margin-bottom: 20px;
+    animation: pulse 1.5s infinite alternate;
+}
+
+.waveform {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+    height: 40px;
+}
+
+.waveform span {
+    display: inline-block;
+    width: 5px;
+    height: 20px;
+    background-color: var(--rabbit-orange);
+    border-radius: 2px;
+}
+
+/* Animation des barres */
+.waveform span:nth-child(1) { animation: wave 0.5s infinite alternate; }
+.waveform span:nth-child(2) { animation: wave 0.5s infinite alternate 0.1s; }
+.waveform span:nth-child(3) { animation: wave 0.5s infinite alternate 0.2s; }
+.waveform span:nth-child(4) { animation: wave 0.5s infinite alternate 0.3s; }
+
+@keyframes wave {
+    0% { height: 10px; opacity: 0.7; }
+    100% { height: 30px; opacity: 1; }
+}
+
+@keyframes pulse {
+    0% { opacity: 0.6; }
+    100% { opacity: 1; }
+}
+
+/* Écran de réponse */
+.response-screen {
+    justify-content: flex-start; /* Aligne en haut */
+    align-items: flex-start; /* Aligne à gauche */
+    overflow-y: auto; /* Permet le scroll si la réponse est longue */
+    padding-bottom: 60px; /* Espace pour le bouton retour */
+}
+/* Positionnement du bouton retour en bas de l'écran de réponse */
+.response-screen .back-button {
+    position: absolute;
+    bottom: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+
+.query-text {
+    font-weight: 600;
+    margin-bottom: 16px;
+    align-self: flex-start;
+    width: 100%;
+    color: #555; /* Légèrement plus sombre */
+    border-bottom: 1px solid var(--light-gray); /* Séparateur */
+    padding-bottom: 8px;
+    word-wrap: break-word; /* Coupe les mots longs */
+}
+
+.response-text {
+    width: 100%;
+    font-size: 15px; /* Taille de texte pour la réponse */
+    line-height: 1.6; /* Meilleure lisibilité */
+    word-wrap: break-word; /* Coupe les mots longs */
+    padding-bottom: 30px; /* Espace avant le bouton retour */
+}
+.response-text p i { /* Style pour le message "Réflexion en cours..." */
+    color: #666;
+}
+.response-text p.error-message { /* Style pour les messages d'erreur dans la réponse */
+     color: var(--error-red);
+     font-weight: 600;
+}
+
+
+/* Styles spécifiques au contenu Markdown (dans response-text) */
+.response-text p { margin-bottom: 1em; }
+.response-text h1, .response-text h2, .response-text h3 { margin-top: 1.5em; margin-bottom: 0.8em; line-height: 1.3; }
+.response-text h1 { font-size: 1.6em; border-bottom: 1px solid var(--light-gray); padding-bottom: 0.3em;}
+.response-text h2 { font-size: 1.4em; }
+.response-text h3 { font-size: 1.2em; }
+.response-text ul, .response-text ol { margin-left: 25px; margin-bottom: 1em; }
+.response-text li { margin-bottom: 0.5em; }
+.response-text code {
+    background-color: #eee;
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 0.9em;
+    word-wrap: break-word;
+}
+.response-text pre {
+    background-color: #eee;
+    padding: 15px;
+    border-radius: 5px;
+    overflow-x: auto; /* Scroll horizontal pour le code long */
+    margin-bottom: 1em;
+}
+.response-text pre code {
+    background-color: transparent;
+    padding: 0;
+    font-size: 0.9em;
+    word-wrap: normal; /* Pas de coupe dans les blocs de code */
+}
+.response-text blockquote {
+    border-left: 4px solid var(--medium-gray);
+    padding-left: 15px;
+    margin: 1em 0;
+    color: #555;
+    font-style: italic;
+}
+.response-text table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1.5em 0;
+    border: 1px solid var(--dark-gray);
+}
+.response-text th, .response-text td {
+    border: 1px solid var(--dark-gray);
+    padding: 10px; /* Plus d'espace */
+    text-align: left;
+}
+.response-text th {
+    background-color: var(--light-gray);
+    font-weight: 600; /* Mise en évidence */
+}
+.response-text hr {
+    border: none;
+    border-top: 1px solid var(--light-gray);
+    margin: 2em 0;
+}
+.response-text a {
+    color: var(--rabbit-orange);
+    text-decoration: none;
+}
+.response-text a:hover {
+    text-decoration: underline;
+}
+.response-text img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    margin: 0.5em 0;
+}
+
+
+/* Écran des alarmes */
+.alarms-screen { justify-content: flex-start; }
+.alarms-screen h2 { margin-bottom: 20px; text-align: center; width: 100%; }
+.alarms-list { list-style: none; width: 100%; }
+.alarms-list li { padding: 12px; border-bottom: 1px solid var(--light-gray); }
+
+/* Écran du minuteur */
+.timer-screen { justify-content: flex-start; }
+.timer-screen h2 { margin-bottom: 20px; text-align: center; width: 100%;}
+.timer-display {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 32px;
+    margin: 20px 0;
+    color: var(--dark-gray);
+}
+.timer-controls { display: flex; gap: 10px; margin-bottom: 20px;}
+.timer-btn {
+    padding: 8px 16px;
+    background-color: var(--medium-gray);
+    border: none;
+    border-radius: 4px;
+    color: var(--dark-gray);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.timer-btn:hover { background-color: var(--light-gray); }
+
+/* Écran de musique */
+.music-screen { justify-content: flex-start; }
+.music-screen h2 { margin-bottom: 20px; text-align: center; width: 100%;}
+.album-art {
+    width: 120px;
+    height: 120px;
+    background-color: var(--medium-gray);
+    border-radius: 8px;
+    margin-bottom: 16px;
+    /* Placeholder style */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 40px;
+    color: #fff;
+    background-image: linear-gradient(45deg, #aaa, #ccc);
+}
+.album-art::before {
+    content: '\f001'; /* Music icon */
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+}
+.track-info { text-align: center; margin-bottom: 16px; }
+.track-title { font-weight: 600; margin-bottom: 4px; }
+.artist-name { font-size: 14px; color: #666; }
+.music-controls { display: flex; gap: 16px; margin-bottom: 20px;}
+.music-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: var(--medium-gray);
+    border: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-size: 16px;
+    color: var(--dark-gray);
+}
+.music-btn:hover { background-color: var(--light-gray); }
+
+/* Écran de vision */
+.vision-screen { justify-content: flex-start; }
+.vision-screen h2 { margin-bottom: 20px; text-align: center; width: 100%;}
+.camera-placeholder {
+    width: 200px;
+    height: 150px;
+    background-color: var(--medium-gray);
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+    border: 2px dashed var(--dark-gray); /* Style placeholder */
+}
+.camera-placeholder i { font-size: 48px; color: var(--dark-gray); }
+.capture-btn {
+    padding: 8px 16px;
+    background-color: var(--medium-gray);
+    border: none;
+    border-radius: 4px;
+    color: var(--dark-gray);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    margin-bottom: 20px;
+}
+.capture-btn:hover { background-color: var(--light-gray); }
+
+/* Écran d'erreur */
+.error-screen { justify-content: flex-start; text-align: center; }
+.error-screen h2 { color: var(--error-red); margin-bottom: 15px;}
+#error-message { margin-bottom: 20px; color: var(--error-red); font-weight: 500;}
+
+
+/* Contrôles */
+.controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+}
+
+.ptt-button {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: var(--rabbit-orange);
+    border: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    color: white;
+    font-size: 24px;
+    box-shadow: 0 4px 8px rgba(255, 126, 0, 0.3);
+    transition: transform 0.1s ease, background-color 0.2s, box-shadow 0.2s;
+    user-select: none; /* Empêche la sélection de texte sur appui long */
+    -webkit-user-select: none;
+    touch-action: manipulation; /* Améliore la réactivité tactile */
+}
+
+/* Styles pour l'état actif/pressé du bouton PTT */
+.ptt-button:active, .ptt-button.active {
+    transform: scale(0.95);
+    background-color: #e67200; /* Plus sombre */
+    box-shadow: 0 2px 4px rgba(255, 126, 0, 0.3);
+}
+/* Animation de pulsation quand actif */
+.ptt-button.active {
+    animation: ptt-pulse 1.5s infinite ease-in-out;
+}
+
+@keyframes ptt-pulse {
+    0% { box-shadow: 0 2px 4px rgba(255, 126, 0, 0.3); }
+    50% { box-shadow: 0 4px 12px rgba(255, 126, 0, 0.5); }
+    100% { box-shadow: 0 2px 4px rgba(255, 126, 0, 0.3); }
+}
+
+
+.scroll-controls {
+    display: flex;
+    gap: 20px;
+}
+
+.scroll-button {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: var(--medium-gray);
+    border: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    color: var(--dark-gray);
+    transition: background-color 0.2s, transform 0.1s ease;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+}
+
+.scroll-button:active {
+    background-color: var(--light-gray);
+    transform: scale(0.95);
+}
+
+/* Styles pour le bouton PTT désactivé */
+.ptt-button:disabled {
+    background-color: var(--medium-gray);
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+    animation: none;
+    opacity: 0.7; /* Indique visuellement qu'il est désactivé */
+}
+.ptt-button:disabled:active {
+     transform: none; /* Pas d'effet au clic si désactivé */
+}
+
+
+/* Responsive */
+@media (max-width: 400px) {
+    body {
+        padding: 10px; /* Moins de padding sur petits écrans */
+    }
+    .device-container {
+        max-width: 100%;
+    }
+    .rabbit-device {
+        border-radius: 16px;
+        padding: 12px;
+    }
+    .timer-display {
+        font-size: 28px;
+    }
+    .album-art {
+        width: 100px;
+        height: 100px;
+    }
+    .camera-placeholder {
+        width: 180px;
+        height: 135px;
+    }
+    .response-text {
+        font-size: 14px; /* Légèrement plus petit sur mobile */
+    }
+    .response-text th, .response-text td {
+        padding: 8px;
+    }
+}
