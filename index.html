@@ -656,6 +656,9 @@
             let recognition = null; // Instance de SpeechRecognition
             let speechApiAvailable = false; // Flag: API supportée et initialisée
             let permissionGranted = null; // null (pas encore demandé), true (accordé), false (refusé)
+            let conversationHistory = []; // NEW: Historique de la conversation
+            let lastInteractionTime = Date.now(); // NEW: Timestamp de la dernière interaction
+            const CONTEXT_TIMEOUT = 60 * 1000; // NEW: 1 minute en millisecondes
 
             // Minuteur
             const timerStartButton = document.getElementById('timer-start');
@@ -667,6 +670,8 @@
 
             // Musique
             const playPauseButton = document.getElementById('play-pause');
+            const prevTrackButton = document.getElementById('prev-track'); // Ajout
+            const nextTrackButton = document.getElementById('next-track'); // Ajout
             let isMusicPlaying = false;
 
             // Vision
@@ -678,6 +683,29 @@
             // Remplacez 'YOUR_API_KEY' par votre clé API Gemini si vous l'utilisez.
             const GEMINI_API_KEY = 'AIzaSyBW5xJAUSzhJP5n5p8znA39QFDR8JqtwPY'; // REMPLACEZ PAR VOTRE VRAIE CLÉ API GEMINI
             const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+
+            // --- NEW: Instruction Système pour Gemini (Pre-prompt) ---
+            const SYSTEM_INSTRUCTION = `Tu es un assistant vocal intégré dans une interface web simulant un appareil Rabbit R1.
+            Tu peux répondre aux questions de l'utilisateur et exécuter certaines actions.
+            Pour exécuter une action, commence ta réponse EXACTEMENT par "% nom_fonction %" suivi de ta réponse textuelle normale. Ne mets rien avant le %.
+            N'utilise qu'une seule commande de fonction par réponse, au tout début.
+            Les fonctions disponibles sont :
+            - % start_timer % : Démarre ou reprend le minuteur.
+            - % reset_timer % : Réinitialise le minuteur.
+            - % play_pause_music % : Met en lecture ou en pause la musique (simulation).
+            - % prev_track % : Passe à la piste précédente (simulation).
+            - % next_track % : Passe à la piste suivante (simulation).
+            - % capture_image % : Prend une photo (simulation).
+            - % go_home % : Affiche l'écran d'accueil.
+            - % show_alarms % : Affiche l'écran des alarmes.
+            - % show_timer % : Affiche l'écran du minuteur.
+            - % show_music % : Affiche l'écran de musique.
+            - % show_vision % : Affiche l'écran de vision.
+
+            Exemple 1: Si l'utilisateur demande "lance le minuteur", réponds "% start_timer % Minuteur démarré."
+            Exemple 2: Si l'utilisateur demande "quelle heure est-il ?", réponds simplement l'heure actuelle sans commande de fonction.
+            Exemple 3: Si l'utilisateur demande "montre moi l'écran de musique", réponds "% show_music % Voici l'écran de musique."
+            Adapte ta réponse textuelle après la commande pour confirmer l'action ou répondre à la question.`;
 
             // --- Fonctions ---
 
@@ -701,6 +729,10 @@
                         // Si on affiche l'écran de réponse, s'assurer que le scroll est en haut
                         if (name === 'response') {
                             screenElement.scrollTop = 0;
+                        }
+                        // Arrêter le flux vidéo si on quitte l'écran de vision
+                        if (name !== 'vision') {
+                            stopVideoStream();
                         }
                     } else {
                         screenElement.classList.remove('active-screen');
@@ -730,6 +762,8 @@
                      // Utilisation de single quotes pour éviter conflit avec style=""
                      responseTextElement.innerHTML = `<p class="error-message">${message}</p>`;
                 }
+                 // NEW: Réinitialiser le timer de contexte en cas d'erreur aussi
+                lastInteractionTime = Date.now();
             }
 
             /**
@@ -1176,10 +1210,12 @@
                 console.log("Traitement du résultat final:", result);
                 switchScreen('response'); // Assurer qu'on est sur l'écran de réponse
 
+                // NEW: Mettre à jour le timestamp de la dernière interaction
+                lastInteractionTime = Date.now();
+
                 if (result instanceof Error) {
                     // C'est une erreur qui a rejeté la promesse
                     queryTextElement.textContent = "Erreur de reconnaissance";
-                    // Correction: Utiliser single quotes pour la chaîne externe
                     responseTextElement.innerHTML = `<p class="error-message">${result.message}</p>`;
                 } else if (typeof result === 'string') {
                     const query = result.trim();
@@ -1192,26 +1228,137 @@
                         if (GEMINI_API_KEY && GEMINI_API_KEY !== 'YOUR_API_KEY') {
                             responseTextElement.innerHTML = "<p><i>Réflexion en cours...</i></p>"; // Message d'attente
                             try {
-                                const answer = await queryGemini(query);
-                                displayMarkdownResponse(answer, responseTextElement); // Afficher la réponse formatée
+                                const answer = await queryGemini(query); // Appel à Gemini avec contexte
+                                // NEW: Traiter la réponse pour les appels de fonction
+                                processApiResponse(answer);
                             } catch (geminiError) {
                                 console.error("Erreur lors de l'appel à Gemini:", geminiError);
-                                // Correction: Utiliser single quotes pour la chaîne externe
                                 responseTextElement.innerHTML = `<p class="error-message">Désolé, une erreur s'est produite avec l'IA : ${geminiError.message}</p>`;
                             }
                         } else {
                              // Si la clé API n'est pas configurée, afficher juste la requête
                              console.warn("Clé API Gemini non configurée. Affichage de la requête uniquement.");
                              responseTextElement.innerHTML = "<p><i>(Fonctionnalité IA non configurée)</i></p>";
+                             // NEW: Ajouter la requête à l'historique même sans réponse IA
+                             addToHistory('user', query);
+                             addToHistory('model', "(Fonctionnalité IA non configurée)");
                         }
                     }
                 } else {
                      console.error("Résultat de reconnaissance inattendu (ni string ni Error):", result);
                      queryTextElement.textContent = "Erreur Inattendue";
-                     // Correction: Utiliser single quotes pour la chaîne externe
                      responseTextElement.innerHTML = '<p class="error-message">Un problème inattendu est survenu lors du traitement de la voix.</p>';
                 }
             }
+
+            // --- NEW: Fonctions pour le contexte et l'appel de fonction ---
+
+            /**
+             * Ajoute un message à l'historique de la conversation.
+             * @param {'user' | 'model'} role - Le rôle de l'auteur du message.
+             * @param {string} text - Le contenu du message.
+             */
+            function addToHistory(role, text) {
+                conversationHistory.push({ role, parts: [{ text }] });
+                console.log("Added to history:", { role, text: text.substring(0, 50) + '...' });
+            }
+
+            /**
+             * Vérifie si le contexte a expiré et le réinitialise si nécessaire.
+             */
+            function checkContextTimeout() {
+                const now = Date.now();
+                if (now - lastInteractionTime > CONTEXT_TIMEOUT) {
+                    console.log("Context timeout. Clearing conversation history.");
+                    conversationHistory = [];
+                    // Optionnel: Informer l'utilisateur que le contexte a été réinitialisé ?
+                }
+                lastInteractionTime = now; // Mettre à jour le timestamp à chaque interaction pertinente
+            }
+
+             /**
+             * Exécute une fonction locale basée sur le nom fourni.
+             * @param {string} functionName - Le nom de la fonction à exécuter.
+             */
+             function executeFunction(functionName) {
+                console.log(`Executing function: ${functionName}`);
+                try {
+                    switch (functionName) {
+                        case 'start_timer':
+                            if (timerStartButton && !isTimerRunning) { // Démarrer seulement s'il n'est pas déjà en cours
+                                timerStartButton.click();
+                            } else if (timerStartButton && isTimerRunning) {
+                                console.log("Timer already running or paused, not starting again.");
+                                // L'IA devrait idéalement gérer la reprise via le même bouton/fonction
+                            }
+                            break;
+                        case 'reset_timer':
+                            timerResetButton?.click();
+                            break;
+                        case 'play_pause_music':
+                            playPauseButton?.click();
+                            break;
+                        case 'prev_track':
+                            prevTrackButton?.click(); // Assurez-vous que ce bouton a un listener
+                            console.log("Simulating previous track");
+                            break;
+                        case 'next_track':
+                            nextTrackButton?.click(); // Assurez-vous que ce bouton a un listener
+                            console.log("Simulating next track");
+                            break;
+                        case 'capture_image':
+                            captureButton?.click();
+                            break;
+                        case 'go_home':
+                            switchScreen('home');
+                            break;
+                        case 'show_alarms':
+                            switchScreen('alarms');
+                            break;
+                        case 'show_timer':
+                            switchScreen('timer');
+                            break;
+                        case 'show_music':
+                            switchScreen('music');
+                            break;
+                        case 'show_vision':
+                            switchScreen('vision');
+                            break;
+                        default:
+                            console.warn(`Function "${functionName}" not recognized.`);
+                    }
+                } catch (error) {
+                    console.error(`Error executing function "${functionName}":`, error);
+                    // Optionnel: Afficher une erreur à l'utilisateur
+                    // showErrorScreen(`Erreur lors de l'exécution de la commande: ${functionName}`);
+                }
+            }
+
+            /**
+             * Traite la réponse de l'API Gemini, recherche les appels de fonction et affiche le résultat.
+             * @param {string} apiResponseText - Le texte brut reçu de l'API Gemini.
+             */
+            function processApiResponse(apiResponseText) {
+                const functionCallRegex = /^\s*%\s*([a-zA-Z0-9_]+)\s*%([\s\S]*)/; // Regex pour détecter % func_name % au début
+                const match = apiResponseText.match(functionCallRegex);
+
+                let displayText = apiResponseText; // Texte à afficher par défaut
+
+                if (match) {
+                    const functionName = match[1].trim();
+                    const remainingText = match[2].trim();
+                    console.log(`Function call detected: ${functionName}`);
+                    executeFunction(functionName); // Exécuter la fonction
+                    displayText = remainingText || `(Action ${functionName} exécutée)`; // Utiliser le reste du texte ou un message par défaut
+                }
+
+                // Afficher la partie textuelle de la réponse (avec ou sans la commande)
+                displayMarkdownResponse(displayText, responseTextElement);
+
+                // Ajouter la réponse (traitée) à l'historique
+                addToHistory('model', apiResponseText); // Ajouter la réponse brute à l'historique pour le contexte futur
+            }
+
 
             // --- Fonctions Utilitaires (Minuteur, Musique, Capture, Gemini, Markdown) ---
 
@@ -1260,16 +1407,16 @@
                     playPauseButton.setAttribute('aria-label', 'Lecture');
                     isMusicPlaying = false;
                     console.log("Musique mise en pause (simulation)");
-                    // TODO: Ajouter la logique réelle pour mettre la musique en pause
                 } else {
                     icon.classList.replace('fa-play', 'fa-pause');
                      playPauseButton.setAttribute('aria-label', 'Pause');
                     isMusicPlaying = true;
                     console.log("Musique en lecture (simulation)");
-                    // TODO: Ajouter la logique réelle pour démarrer la musique
                 }
             });
-             // TODO: Ajouter listeners et logique pour prev/next track
+             // Ajouter des listeners pour prev/next si les boutons existent
+             prevTrackButton?.addEventListener('click', () => console.log("Piste précédente (simulation)"));
+             nextTrackButton?.addEventListener('click', () => console.log("Piste suivante (simulation)"));
 
             // Vision (Implémentation réelle)
             let videoStream = null; // Pour stocker le flux vidéo
@@ -1288,6 +1435,7 @@
                     return true; // Déjà démarré
                 }
                 // Vérifier la permission caméra avant de démarrer
+                // La variable 'permissionGranted' est mise à jour lors de l'initialisation
                 if (permissionGranted === false) {
                      console.warn("Cannot start video stream: camera permission denied.");
                      showErrorScreen("L'accès à la caméra a été refusé. Veuillez l'autoriser dans les paramètres.");
@@ -1296,7 +1444,6 @@
 
                 try {
                     console.log("Attempting to start video stream...");
-                    // getUserMedia pour la vidéo (permission déjà demandée à l'initialisation ou vérifiée avant)
                     videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
                     videoElement.srcObject = videoStream;
                     videoElement.play(); // Démarrer la lecture pour que l'image s'affiche
@@ -1304,7 +1451,10 @@
                     // Attendre que les métadonnées de la vidéo soient chargées pour connaître la taille
                     await new Promise((resolve, reject) => {
                          videoElement.onloadedmetadata = resolve;
-                         videoElement.onerror = reject; // Gérer les erreurs de chargement
+                         videoElement.onerror = (e) => {
+                             console.error("Video metadata loading error:", e);
+                             reject(new Error("Erreur de chargement des métadonnées vidéo."));
+                         };
                     });
                     console.log("Video stream started successfully.");
                     return true;
@@ -1313,16 +1463,16 @@
                     let userMessage = "Impossible de démarrer le flux vidéo.";
                     if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
                         userMessage = "L'accès à la caméra a été refusé. Veuillez l'autoriser dans les paramètres de votre navigateur pour ce site.";
-                        permissionGranted = false; // Mettre à jour si refusé ici
+                        // Ne pas redéfinir permissionGranted ici, elle est gérée par l'API Permissions si dispo
                     } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
                          userMessage = "Aucune caméra trouvée.";
-                    } else if (err.name === 'NotReadableError' || err.name === 'OverconstrainedError') {
-                         userMessage = "La caméra est peut-être déjà utilisée par une autre application.";
+                    } else if (err.name === 'NotReadableError' || err.name === 'OverconstrainedError' || err.name === 'TrackStartError') {
+                         userMessage = "La caméra est peut-être déjà utilisée ou rencontre un problème matériel.";
                     } else {
                          userMessage = `Erreur technique caméra: ${err.message || err.name}`;
                     }
                     showErrorScreen(userMessage);
-                    videoStream = null;
+                    videoStream = null; // S'assurer que le flux est marqué comme nul en cas d'erreur
                     return false;
                 }
             }
@@ -1360,8 +1510,12 @@
                 // S'assurer que la vidéo a des dimensions valides
                  if (!videoElement.videoWidth || !videoElement.videoHeight) {
                      console.error("Video dimensions are zero, cannot capture.");
-                     showErrorScreen("Impossible de capturer l'image (dimensions vidéo invalides).");
-                     return;
+                     // Attendre un court instant et réessayer, au cas où les dimensions ne seraient pas encore prêtes
+                     await new Promise(resolve => setTimeout(resolve, 100));
+                     if (!videoElement.videoWidth || !videoElement.videoHeight) {
+                         showErrorScreen("Impossible de capturer l'image (dimensions vidéo invalides).");
+                         return;
+                     }
                  }
 
                 // Capturer l'image sur le canvas
@@ -1394,42 +1548,57 @@
                 // Afficher une confirmation sur l'écran de réponse
                 switchScreen('response');
                 queryTextElement.textContent = "Vision";
-                // Afficher l'image capturée (optionnel, peut être lourd)
-                // responseTextElement.innerHTML = `<p>Image capturée.</p><img src="${imageDataUrl}" alt="Captured Image" style="max-width:100%; height:auto;">`;
                 responseTextElement.innerHTML = "<p>Image capturée.</p>"; // Affichage simple
 
-                // Optionnel: Arrêter le flux vidéo après la capture si vous n'en avez plus besoin immédiatement
-                // stopVideoStream(); // Décommenter si vous voulez arrêter le flux après chaque capture
+                // Optionnel: Arrêter le flux vidéo après la capture
+                // stopVideoStream();
             });
 
-            // Assurez-vous d'arrêter le flux vidéo lorsque l'application se ferme ou change d'écran majeur si nécessaire
-            // Par exemple, ajouter un listener pour l'événement beforeunload ou gérer l'arrêt lors du changement d'écran
+            // Assurez-vous d'arrêter le flux vidéo lorsque l'application se ferme
             window.addEventListener('beforeunload', stopVideoStream);
-            // Ou lors du changement d'écran si le flux ne doit être actif que sur l'écran Vision
-            // (Cela nécessiterait une logique plus complexe dans switchScreen)
 
-            // Appel API Gemini
+
+            // Appel API Gemini (MODIFIED FOR CONTEXT)
             async function queryGemini(prompt) {
                 console.log("Querying Gemini with:", prompt);
-                if (!prompt) { // Vérification simplifiée
-                    console.warn("Requête Gemini annulée: prompt vide.");
-                    // Pas besoin de lancer une erreur ici, processSpeechResult gère déjà le cas vide
-                    return "Je n'ai pas compris, veuillez fournir une requête.";
-                }
-                 if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_API_KEY') {
+
+                // NEW: Vérifier et réinitialiser le contexte si nécessaire
+                checkContextTimeout();
+
+                // NEW: Ajouter la requête actuelle à l'historique
+                addToHistory('user', prompt);
+
+                if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_API_KEY') {
                      console.error("Clé API Gemini manquante ou non configurée.");
-                     // Lancer une erreur pour qu'elle soit attrapée par processSpeechResult
-                     throw new Error("La clé API pour l'IA n'est pas configurée.");
+                     // Ajouter une réponse d'erreur simulée à l'historique
+                     const errorMsg = "La clé API pour l'IA n'est pas configurée.";
+                     addToHistory('model', errorMsg);
+                     throw new Error(errorMsg);
                  }
 
                 responseTextElement.innerHTML = "<p><i>Réflexion en cours...</i></p>"; // Afficher pendant l'appel
+
+                // NEW: Construire le contenu avec l'instruction système et l'historique
+                const requestContents = [
+                    { role: 'user', parts: [{ text: SYSTEM_INSTRUCTION }] }, // Instruction système
+                    // Ajouter l'historique existant
+                    ...conversationHistory
+                    // La requête actuelle est déjà dans l'historique via addToHistory('user', prompt)
+                ];
+
+                // Nettoyage potentiel de l'historique si trop long (à implémenter si nécessaire)
+                // const MAX_HISTORY_LENGTH = 10; // Exemple
+                // if (requestContents.length > MAX_HISTORY_LENGTH + 1) { // +1 pour l'instruction système
+                //     requestContents.splice(1, requestContents.length - MAX_HISTORY_LENGTH - 1); // Garder l'instruction et les X derniers messages
+                // }
+
 
                 try {
                     const response = await fetch(GEMINI_API_URL, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            contents: [{ parts: [{ text: prompt }] }],
+                            contents: requestContents, // Utiliser le contenu construit
                             generationConfig: { /* Options si besoin */ },
                              safetySettings: [ /* Configuration de sécurité */
                                  { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
@@ -1445,53 +1614,60 @@
                     if (!response.ok) {
                         console.error('Erreur API Gemini:', response.status, data);
                         const errorMessage = data?.error?.message || `Erreur HTTP ${response.status}`;
-                        throw new Error(`Erreur de l'API IA : ${errorMessage}`); // Lancer pour catch externe
+                        const fullErrorMsg = `Erreur de l'API IA : ${errorMessage}`;
+                        addToHistory('model', `Erreur: ${fullErrorMsg}`); // Ajouter l'erreur à l'historique
+                        throw new Error(fullErrorMsg); // Lancer pour catch externe
                     }
 
                     console.log("Réponse Gemini brute:", data);
 
                     // Gestion des réponses bloquées ou vides
+                    let responseText = "Désolé, je n'ai pas pu générer de réponse. Veuillez réessayer."; // Réponse par défaut
                     if (!data.candidates || data.candidates.length === 0) {
                          if (data.promptFeedback?.blockReason) {
                              const reason = data.promptFeedback.blockReason.replace(/_/g, ' ').toLowerCase();
                              console.warn(`Réponse bloquée par Gemini. Raison: ${reason}`);
-                             return `Je ne peux pas répondre car la requête a été bloquée pour raison de sécurité (${reason}).`;
+                             responseText = `Je ne peux pas répondre car la requête a été bloquée pour raison de sécurité (${reason}).`;
                          } else {
                              console.warn("Réponse Gemini vide ou sans candidats.");
-                             return "Désolé, je n'ai pas pu générer de réponse. Veuillez réessayer.";
+                         }
+                         // Ne pas ajouter cette réponse d'erreur système à l'historique du modèle, juste la retourner
+                         return responseText; // Retourner le message d'erreur/blocage
+                    } else {
+                         // Gestion des fins anormales
+                         const candidate = data.candidates[0];
+                         if (candidate.finishReason && candidate.finishReason !== 'STOP' && candidate.finishReason !== 'MAX_TOKENS') {
+                             const reason = candidate.finishReason.replace(/_/g, ' ').toLowerCase();
+                             console.warn(`Réponse Gemini terminée prématurément. Raison: ${reason}`);
+                             const partialText = candidate.content?.parts?.[0]?.text || "";
+                             responseText = partialText + `\n\n_(Note : La réponse a été interrompue : ${reason}.)_`;
+                         } else {
+                             // Réponse nominale
+                             responseText = candidate.content?.parts?.[0]?.text || "Désolé, j'ai reçu une réponse dans un format inattendu.";
                          }
                     }
 
-                    // Gestion des fins anormales
-                    const candidate = data.candidates[0];
-                     if (candidate.finishReason && candidate.finishReason !== 'STOP' && candidate.finishReason !== 'MAX_TOKENS') {
-                         const reason = candidate.finishReason.replace(/_/g, ' ').toLowerCase();
-                         console.warn(`Réponse Gemini terminée prématurément. Raison: ${reason}`);
-                         const partialText = candidate.content?.parts?.[0]?.text || "";
-                         return partialText + `\n\n_(Note : La réponse a été interrompue : ${reason}.)_`;
-                     }
+                    // IMPORTANT: La réponse brute (responseText) est ajoutée à l'historique
+                    // dans la fonction processApiResponse après traitement (pour garder le contexte propre)
+                    // addToHistory('model', responseText); // Déplacé vers processApiResponse
 
-                    // Réponse nominale
-                    const responseText = candidate.content?.parts?.[0]?.text;
-                    if (responseText) {
-                        return responseText;
-                    } else {
-                        console.warn("Structure de réponse Gemini inattendue:", data);
-                        return "Désolé, j'ai reçu une réponse dans un format inattendu.";
-                    }
+                    return responseText; // Retourner le texte brut de la réponse
 
                 } catch (error) {
                     console.error('Erreur lors de la requête à Gemini:', error);
-                     // Renvoyer l'erreur pour qu'elle soit gérée par l'appelant (processSpeechResult)
-                     // Le message d'erreur est déjà formaté dans le bloc catch
-                     throw error; // Relancer l'erreur
+                    // L'erreur (y compris les erreurs API formatées) est déjà ajoutée à l'historique si elle vient du bloc try/catch API
+                    // Si c'est une autre erreur (ex: réseau), l'ajouter ici
+                    if (!error.message.includes("Erreur de l'API IA")) {
+                         addToHistory('model', `Erreur réseau/fetch: ${error.message}`);
+                    }
+                     throw error; // Relancer l'erreur pour l'appelant (processSpeechResult)
                 }
             }
 
             // --- Conversion Markdown vers HTML (Basique) ---
             function markdownToHtml(markdown) {
                 if (typeof markdown !== 'string') return '';
-                console.log("Converting Markdown to HTML...");
+                // console.log("Converting Markdown to HTML..."); // Moins verbeux
 
                 let html = markdown;
                 // Échapper le HTML potentiel dans le markdown pour éviter les injections simples
