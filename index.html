@@ -8,7 +8,524 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="styles.css">
+
+    <style>
+        /* Variables globales */
+        :root {
+            --rabbit-orange: #ff7e00;
+            --off-white: #f8f8f8;
+            --light-gray: #e0e0e0;
+            --medium-gray: #cccccc;
+            --dark-gray: #333333;
+            --device-gray: #d0d0d0;
+            --error-red: #d9534f; /* Couleur pour les erreurs */
+        }
+
+        /* Styles de base */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--off-white);
+            color: var(--dark-gray);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            -webkit-tap-highlight-color: transparent; /* Empêche le flash bleu sur mobile */
+        }
+
+        /* Container du dispositif */
+        .device-container {
+            width: 100%;
+            max-width: 360px; /* Limite la largeur max */
+            margin: 0 auto;
+        }
+
+        .rabbit-device {
+            background-color: var(--device-gray);
+            border-radius: 24px;
+            padding: 16px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px; /* Espace entre l'écran et les contrôles */
+        }
+
+        /* Écran principal */
+        .main-display {
+            background-color: var(--off-white);
+            border-radius: 16px;
+            width: 100%;
+            aspect-ratio: 1 / 1; /* Format carré */
+            overflow: hidden; /* Cache le contenu qui dépasse */
+            position: relative; /* Pour positionner les écrans */
+            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Écrans (général) */
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center; /* Centre verticalement par défaut */
+            align-items: center; /* Centre horizontalement par défaut */
+            padding: 20px;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
+            transform: translateX(20px); /* Légère translation pour l'effet d'entrée */
+            overflow-y: auto; /* Permet le défilement si le contenu dépasse */
+        }
+
+        .active-screen {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(0); /* Annule la translation */
+        }
+
+        /* Bouton Retour (commun à plusieurs écrans) */
+        .back-button {
+            margin-top: auto; /* Pousse le bouton vers le bas */
+            padding: 8px 16px;
+            background-color: var(--medium-gray);
+            border: none;
+            border-radius: 4px;
+            color: var(--dark-gray);
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-size: 14px;
+            display: inline-flex; /* Pour aligner l'icône et le texte */
+            align-items: center;
+            gap: 5px; /* Espace entre icône et texte */
+        }
+
+        .back-button:hover {
+            background-color: var(--light-gray);
+        }
+
+        /* Écran d'accueil */
+        .home-screen {
+            text-align: center;
+        }
+
+        .greeting {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .instruction {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .permission-status {
+            font-size: 12px;
+            color: #666; /* Couleur par défaut */
+            margin-top: 10px;
+            min-height: 1.2em; /* Réserve un peu d'espace */
+            font-weight: 500;
+        }
+        /* Style spécifique pour les erreurs de permission */
+        .permission-status.error {
+            color: var(--error-red);
+            font-weight: 600;
+        }
+
+
+        /* Écran d'écoute */
+        .listening-screen {
+            justify-content: center;
+        }
+
+        .listening-indicator {
+            text-align: center;
+        }
+
+        .listening-text {
+            font-size: 18px;
+            margin-bottom: 20px;
+            animation: pulse 1.5s infinite alternate;
+        }
+
+        .waveform {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+            height: 40px;
+        }
+
+        .waveform span {
+            display: inline-block;
+            width: 5px;
+            height: 20px;
+            background-color: var(--rabbit-orange);
+            border-radius: 2px;
+        }
+
+        /* Animation des barres */
+        .waveform span:nth-child(1) { animation: wave 0.5s infinite alternate; }
+        .waveform span:nth-child(2) { animation: wave 0.5s infinite alternate 0.1s; }
+        .waveform span:nth-child(3) { animation: wave 0.5s infinite alternate 0.2s; }
+        .waveform span:nth-child(4) { animation: wave 0.5s infinite alternate 0.3s; }
+
+        @keyframes wave {
+            0% { height: 10px; opacity: 0.7; }
+            100% { height: 30px; opacity: 1; }
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+
+        /* Écran de réponse */
+        .response-screen {
+            justify-content: flex-start; /* Aligne en haut */
+            align-items: flex-start; /* Aligne à gauche */
+            overflow-y: auto; /* Permet le scroll si la réponse est longue */
+            padding-bottom: 60px; /* Espace pour le bouton retour */
+        }
+        /* Positionnement du bouton retour en bas de l'écran de réponse */
+        .response-screen .back-button {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+
+        .query-text {
+            font-weight: 600;
+            margin-bottom: 16px;
+            align-self: flex-start;
+            width: 100%;
+            color: #555; /* Légèrement plus sombre */
+            border-bottom: 1px solid var(--light-gray); /* Séparateur */
+            padding-bottom: 8px;
+            word-wrap: break-word; /* Coupe les mots longs */
+        }
+
+        .response-text {
+            width: 100%;
+            font-size: 15px; /* Taille de texte pour la réponse */
+            line-height: 1.6; /* Meilleure lisibilité */
+            word-wrap: break-word; /* Coupe les mots longs */
+            padding-bottom: 30px; /* Espace avant le bouton retour */
+        }
+        .response-text p i { /* Style pour le message "Réflexion en cours..." */
+            color: #666;
+        }
+        .response-text p.error-message { /* Style pour les messages d'erreur dans la réponse */
+             color: var(--error-red);
+             font-weight: 600;
+        }
+
+
+        /* Styles spécifiques au contenu Markdown (dans response-text) */
+        .response-text p { margin-bottom: 1em; }
+        .response-text h1, .response-text h2, .response-text h3 { margin-top: 1.5em; margin-bottom: 0.8em; line-height: 1.3; }
+        .response-text h1 { font-size: 1.6em; border-bottom: 1px solid var(--light-gray); padding-bottom: 0.3em;}
+        .response-text h2 { font-size: 1.4em; }
+        .response-text h3 { font-size: 1.2em; }
+        .response-text ul, .response-text ol { margin-left: 25px; margin-bottom: 1em; }
+        .response-text li { margin-bottom: 0.5em; }
+        .response-text code {
+            background-color: #eee;
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 0.9em;
+            word-wrap: break-word;
+        }
+        .response-text pre {
+            background-color: #eee;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto; /* Scroll horizontal pour le code long */
+            margin-bottom: 1em;
+        }
+        .response-text pre code {
+            background-color: transparent;
+            padding: 0;
+            font-size: 0.9em;
+            word-wrap: normal; /* Pas de coupe dans les blocs de code */
+        }
+        .response-text blockquote {
+            border-left: 4px solid var(--medium-gray);
+            padding-left: 15px;
+            margin: 1em 0;
+            color: #555;
+            font-style: italic;
+        }
+        .response-text table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1.5em 0;
+            border: 1px solid var(--dark-gray);
+        }
+        .response-text th, .response-text td {
+            border: 1px solid var(--dark-gray);
+            padding: 10px; /* Plus d'espace */
+            text-align: left;
+        }
+        .response-text th {
+            background-color: var(--light-gray);
+            font-weight: 600; /* Mise en évidence */
+        }
+        .response-text hr {
+            border: none;
+            border-top: 1px solid var(--light-gray);
+            margin: 2em 0;
+        }
+        .response-text a {
+            color: var(--rabbit-orange);
+            text-decoration: none;
+        }
+        .response-text a:hover {
+            text-decoration: underline;
+        }
+        .response-text img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            margin: 0.5em 0;
+        }
+
+
+        /* Écran des alarmes */
+        .alarms-screen { justify-content: flex-start; }
+        .alarms-screen h2 { margin-bottom: 20px; text-align: center; width: 100%; }
+        .alarms-list { list-style: none; width: 100%; }
+        .alarms-list li { padding: 12px; border-bottom: 1px solid var(--light-gray); }
+
+        /* Écran du minuteur */
+        .timer-screen { justify-content: flex-start; }
+        .timer-screen h2 { margin-bottom: 20px; text-align: center; width: 100%;}
+        .timer-display {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 32px;
+            margin: 20px 0;
+            color: var(--dark-gray);
+        }
+        .timer-controls { display: flex; gap: 10px; margin-bottom: 20px;}
+        .timer-btn {
+            padding: 8px 16px;
+            background-color: var(--medium-gray);
+            border: none;
+            border-radius: 4px;
+            color: var(--dark-gray);
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .timer-btn:hover { background-color: var(--light-gray); }
+
+        /* Écran de musique */
+        .music-screen { justify-content: flex-start; }
+        .music-screen h2 { margin-bottom: 20px; text-align: center; width: 100%;}
+        .album-art {
+            width: 120px;
+            height: 120px;
+            background-color: var(--medium-gray);
+            border-radius: 8px;
+            margin-bottom: 16px;
+            /* Placeholder style */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            color: #fff;
+            background-image: linear-gradient(45deg, #aaa, #ccc);
+        }
+        .album-art::before {
+            content: '\f001'; /* Music icon */
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+        }
+        .track-info { text-align: center; margin-bottom: 16px; }
+        .track-title { font-weight: 600; margin-bottom: 4px; }
+        .artist-name { font-size: 14px; color: #666; }
+        .music-controls { display: flex; gap: 16px; margin-bottom: 20px;}
+        .music-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--medium-gray);
+            border: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-size: 16px;
+            color: var(--dark-gray);
+        }
+        .music-btn:hover { background-color: var(--light-gray); }
+
+        /* Écran de vision */
+        .vision-screen { justify-content: flex-start; }
+        .vision-screen h2 { margin-bottom: 20px; text-align: center; width: 100%;}
+        .camera-placeholder {
+            width: 200px;
+            height: 150px;
+            background-color: var(--medium-gray);
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+            border: 2px dashed var(--dark-gray); /* Style placeholder */
+        }
+        .camera-placeholder i { font-size: 48px; color: var(--dark-gray); }
+        .capture-btn {
+            padding: 8px 16px;
+            background-color: var(--medium-gray);
+            border: none;
+            border-radius: 4px;
+            color: var(--dark-gray);
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-bottom: 20px;
+        }
+        .capture-btn:hover { background-color: var(--light-gray); }
+
+        /* Écran d'erreur */
+        .error-screen { justify-content: flex-start; text-align: center; }
+        .error-screen h2 { color: var(--error-red); margin-bottom: 15px;}
+        #error-message { margin-bottom: 20px; color: var(--error-red); font-weight: 500;}
+
+
+        /* Contrôles */
+        .controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            width: 100%;
+        }
+
+        .ptt-button {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background-color: var(--rabbit-orange);
+            border: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            color: white;
+            font-size: 24px;
+            box-shadow: 0 4px 8px rgba(255, 126, 0, 0.3);
+            transition: transform 0.1s ease, background-color 0.2s, box-shadow 0.2s;
+            user-select: none; /* Empêche la sélection de texte sur appui long */
+            -webkit-user-select: none;
+            touch-action: manipulation; /* Améliore la réactivité tactile */
+        }
+
+        /* Styles pour l'état actif/pressé du bouton PTT */
+        .ptt-button:active, .ptt-button.active {
+            transform: scale(0.95);
+            background-color: #e67200; /* Plus sombre */
+            box-shadow: 0 2px 4px rgba(255, 126, 0, 0.3);
+        }
+        /* Animation de pulsation quand actif */
+        .ptt-button.active {
+            animation: ptt-pulse 1.5s infinite ease-in-out;
+        }
+
+        @keyframes ptt-pulse {
+            0% { box-shadow: 0 2px 4px rgba(255, 126, 0, 0.3); }
+            50% { box-shadow: 0 4px 12px rgba(255, 126, 0, 0.5); }
+            100% { box-shadow: 0 2px 4px rgba(255, 126, 0, 0.3); }
+        }
+
+
+        .scroll-controls {
+            display: flex;
+            gap: 20px;
+        }
+
+        .scroll-button {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--medium-gray);
+            border: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            color: var(--dark-gray);
+            transition: background-color 0.2s, transform 0.1s ease;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        .scroll-button:active {
+            background-color: var(--light-gray);
+            transform: scale(0.95);
+        }
+
+        /* Styles pour le bouton PTT désactivé */
+        .ptt-button:disabled {
+            background-color: var(--medium-gray);
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+            animation: none;
+            opacity: 0.7; /* Indique visuellement qu'il est désactivé */
+        }
+        .ptt-button:disabled:active {
+             transform: none; /* Pas d'effet au clic si désactivé */
+        }
+
+
+        /* Responsive */
+        @media (max-width: 400px) {
+            body {
+                padding: 10px; /* Moins de padding sur petits écrans */
+            }
+            .device-container {
+                max-width: 100%;
+            }
+            .rabbit-device {
+                border-radius: 16px;
+                padding: 12px;
+            }
+            .timer-display {
+                font-size: 28px;
+            }
+            .album-art {
+                width: 100px;
+                height: 100px;
+            }
+            .camera-placeholder {
+                width: 180px;
+                height: 135px;
+            }
+            .response-text {
+                font-size: 14px; /* Légèrement plus petit sur mobile */
+            }
+            .response-text th, .response-text td {
+                padding: 8px;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="device-container">
@@ -17,7 +534,7 @@
                 <div class="screen home-screen active-screen" data-screen-name="home">
                     <div class="greeting">Bonjour Matéo</div>
                     <div class="instruction">Maintenez pour parler</div>
-                    <div class="permission-status" id="permission-status"></div> </div>
+                    <div class="permission-status" id="permission-status">Vérification des permissions...</div> </div>
 
                 <div class="screen listening-screen" data-screen-name="listening">
                     <div class="listening-indicator">
@@ -31,7 +548,7 @@
                 <div class="screen response-screen" data-screen-name="response">
                     <div class="query-text" id="query-text"></div>
                     <div class="response-text" id="response-text"></div>
-                     <button class="back-button" data-target-screen="home"><i class="fas fa-arrow-left"></i> Retour</button>
+                    <button class="back-button" data-target-screen="home"><i class="fas fa-arrow-left"></i> Retour</button>
                 </div>
 
                 <div class="screen alarms-screen" data-screen-name="alarms">
@@ -51,7 +568,7 @@
                         <button class="timer-btn" id="timer-start" aria-label="Démarrer le minuteur">Démarrer</button>
                         <button class="timer-btn" id="timer-reset" aria-label="Réinitialiser le minuteur">Réinitialiser</button>
                     </div>
-                     <button class="back-button" data-target-screen="home"><i class="fas fa-arrow-left"></i> Retour</button>
+                    <button class="back-button" data-target-screen="home"><i class="fas fa-arrow-left"></i> Retour</button>
                 </div>
 
                 <div class="screen music-screen" data-screen-name="music">
@@ -66,7 +583,7 @@
                         <button class="music-btn" id="play-pause" aria-label="Lecture/Pause"><i class="fas fa-play"></i></button>
                         <button class="music-btn" id="next-track" aria-label="Piste suivante"><i class="fas fa-step-forward"></i></button>
                     </div>
-                     <button class="back-button" data-target-screen="home"><i class="fas fa-arrow-left"></i> Retour</button>
+                    <button class="back-button" data-target-screen="home"><i class="fas fa-arrow-left"></i> Retour</button>
                 </div>
 
                 <div class="screen vision-screen" data-screen-name="vision">
@@ -75,10 +592,10 @@
                         <i class="fas fa-camera"></i>
                     </div>
                     <button class="capture-btn" aria-label="Capturer l'image">Capturer</button>
-                     <button class="back-button" data-target-screen="home"><i class="fas fa-arrow-left"></i> Retour</button>
+                    <button class="back-button" data-target-screen="home"><i class="fas fa-arrow-left"></i> Retour</button>
                 </div>
 
-                 <div class="screen error-screen" data-screen-name="error">
+                <div class="screen error-screen" data-screen-name="error">
                     <h2>Erreur</h2>
                     <p id="error-message">Une erreur s'est produite.</p>
                     <button class="back-button" data-target-screen="home"><i class="fas fa-arrow-left"></i> Retour</button>
@@ -87,8 +604,7 @@
             </div>
 
             <div class="controls">
-                <button class="ptt-button" id="ptt-button" aria-label="Maintenir pour parler" aria-pressed="false">
-                    <i class="fas fa-microphone"></i>
+                <button class="ptt-button" id="ptt-button" aria-label="Maintenir pour parler" aria-pressed="false" disabled> <i class="fas fa-microphone"></i>
                 </button>
 
                 <div class="scroll-controls">
@@ -103,6 +619,1061 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Éléments DOM ---
+            const mainDisplay = document.getElementById('main-display');
+            const pttButton = document.getElementById('ptt-button');
+            const scrollUpButton = document.getElementById('scroll-up');
+            const scrollDownButton = document.getElementById('scroll-down');
+            const queryTextElement = document.getElementById('query-text');
+            const responseTextElement = document.getElementById('response-text');
+            const permissionStatusElement = document.getElementById('permission-status');
+            const errorMessageElement = document.getElementById('error-message');
+
+            // Récupération dynamique des écrans basée sur l'attribut data-screen-name
+            const screens = {};
+            document.querySelectorAll('.screen').forEach(screen => {
+                const screenName = screen.dataset.screenName;
+                if (screenName) {
+                    screens[screenName] = screen;
+                }
+            });
+            // Ordre de navigation pour les boutons scroll (exclut écoute/réponse/erreur)
+            const screenOrder = [
+                'home',
+                'alarms',
+                'timer',
+                'music',
+                'vision'
+            ];
+            let currentScreenIndex = 0; // Index dans screenOrder
+
+            // --- Variables d'état ---
+            let isListening = false; // Flag: PTT est activement enfoncé
+            let recognitionActive = false; // Flag: API SpeechRecognition est en cours d'exécution (onstart -> onend/onerror)
+            let speechPromiseCallbacks = null; // Stocke { resolve, reject } de la promesse de reconnaissance en cours
+            let recognition = null; // Instance de SpeechRecognition
+            let speechApiAvailable = false; // Flag: API supportée et initialisée
+            let permissionGranted = null; // null (pas encore demandé), true (accordé), false (refusé)
+
+            // Minuteur
+            const timerStartButton = document.getElementById('timer-start');
+            const timerResetButton = document.getElementById('timer-reset');
+            const timerDisplay = document.querySelector('.timer-display');
+            let timerInterval = null;
+            let timerSeconds = 0;
+            let isTimerRunning = false;
+
+            // Musique
+            const playPauseButton = document.getElementById('play-pause');
+            let isMusicPlaying = false;
+
+            // Vision
+            const captureButton = document.querySelector('.capture-btn');
+
+            // --- Configuration ---
+            // ATTENTION : Stocker la clé API directement dans le code front-end n'est PAS SÉCURISÉ.
+            // Pour une application réelle, utilisez un backend pour gérer les appels API.
+            // Remplacez 'YOUR_API_KEY' par votre clé API Gemini si vous l'utilisez.
+            const GEMINI_API_KEY = 'AIzaSyBW5xJAUSzhJP5n5p8znA39QFDR8JqtwPY'; // REMPLACEZ PAR VOTRE VRAIE CLÉ API GEMINI
+            const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+
+            // --- Fonctions ---
+
+            /**
+             * Affiche un écran spécifique et masque les autres.
+             * @param {string} screenName - Le nom de l'écran à afficher (doit correspondre à data-screen-name).
+             */
+            function switchScreen(screenName) {
+                console.log(`Switching to screen: ${screenName}`);
+                let foundScreen = false;
+                Object.entries(screens).forEach(([name, screenElement]) => {
+                    if (name === screenName) {
+                        screenElement.classList.add('active-screen');
+                        foundScreen = true;
+                        // Mettre à jour l'index si c'est un écran principal navigable
+                        const navigableIndex = screenOrder.indexOf(screenName);
+                        if (navigableIndex !== -1) {
+                            currentScreenIndex = navigableIndex;
+                            console.log(`Current navigable screen index updated to: ${currentScreenIndex} (${screenName})`);
+                        }
+                        // Si on affiche l'écran de réponse, s'assurer que le scroll est en haut
+                        if (name === 'response') {
+                            screenElement.scrollTop = 0;
+                        }
+                    } else {
+                        screenElement.classList.remove('active-screen');
+                    }
+                });
+
+                if (!foundScreen) {
+                    console.error(`Screen "${screenName}" not found. Switching to home.`);
+                    switchScreen('home'); // Revenir à l'accueil en cas d'erreur
+                }
+            }
+
+            /**
+             * Affiche un message d'erreur sur l'écran d'erreur dédié ou en fallback.
+             * @param {string} message - Le message d'erreur à afficher.
+             */
+            function showErrorScreen(message) {
+                console.error("Displaying error:", message); // Log l'erreur
+                if (errorMessageElement && screens.error) {
+                    errorMessageElement.textContent = message;
+                    switchScreen('error');
+                } else {
+                    // Fallback si l'écran d'erreur n'existe pas
+                    console.error("Error screen elements not found. Fallback display on response screen.");
+                     switchScreen('response');
+                     queryTextElement.textContent = "Erreur";
+                     // Utilisation de single quotes pour éviter conflit avec style=""
+                     responseTextElement.innerHTML = `<p class="error-message">${message}</p>`;
+                }
+            }
+
+            /**
+             * Met à jour le message de statut de permission sur l'écran d'accueil.
+             * @param {string} message - Le message à afficher.
+             * @param {boolean} isError - Si true, ajoute la classe 'error' pour le style.
+             */
+            function updatePermissionStatus(message, isError = false) {
+                if (permissionStatusElement) {
+                    permissionStatusElement.textContent = message;
+                    if (isError) {
+                        permissionStatusElement.classList.add('error');
+                    } else {
+                        permissionStatusElement.classList.remove('error');
+                    }
+                    console.log(`Permission status updated: "${message}" (isError: ${isError})`);
+                }
+            }
+
+            // --- Initialisation de la Reconnaissance Vocale ---
+
+            /**
+             * Initialise l'API SpeechRecognition et demande les permissions microphone et caméra.
+             * @returns {Promise<boolean>} Promesse résolue avec true si l'API est prête et les permissions nécessaires sont accordées ou demandées, false sinon.
+             */
+            async function initializeSpeechRecognition() {
+                console.log("Initializing Speech Recognition and requesting permissions...");
+                updatePermissionStatus("Initialisation..."); // Message pendant l'init
+
+                // Vérifier la compatibilité du navigateur
+                const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SpeechRecognitionAPI) {
+                    console.warn("API SpeechRecognition non supportée.");
+                    updatePermissionStatus("Reconnaissance vocale non supportée par ce navigateur.", true);
+                    speechApiAvailable = false;
+                    if (pttButton) pttButton.disabled = true;
+                    return false;
+                }
+
+                // Vérifier le contexte sécurisé (HTTPS ou localhost)
+                if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                     console.warn("Contexte non sécurisé détecté.");
+                     updatePermissionStatus("Le microphone et la caméra nécessitent une connexion sécurisée (HTTPS).", true);
+                     speechApiAvailable = false;
+                     if (pttButton) pttButton.disabled = true;
+                     return false;
+                }
+                // Vérification supplémentaire pour mediaDevices (plus fiable pour détecter le contexte sécurisé)
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                     console.warn("navigator.mediaDevices.getUserMedia non disponible (contexte non sécurisé ?).");
+                      updatePermissionStatus("Impossible d'accéder aux périphériques média (connexion non sécurisée ?).", true);
+                     speechApiAvailable = false;
+                     if (pttButton) pttButton.disabled = true;
+                     return false;
+                }
+
+                // --- Demander explicitement les permissions microphone et caméra au démarrage ---
+                try {
+                    console.log("Attempting to get microphone and camera permissions via getUserMedia...");
+                    updatePermissionStatus("Demande des permissions..."); // Message pendant la demande
+                    // Demander les deux permissions en même temps
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+                    console.log("getUserMedia successful, permissions granted.");
+                    permissionGranted = true; // Supposons que si getUserMedia réussit, les permissions sont accordées
+                    updatePermissionStatus("Microphone et caméra prêts.");
+
+                    // Arrêter immédiatement les pistes car nous n'en avons pas besoin pour l'initialisation
+                    stream.getTracks().forEach(track => track.stop());
+
+                    // Optionnel: Utiliser l'API Permissions pour suivre les changements futurs si supporté
+                    if (navigator.permissions && typeof navigator.permissions.query === 'function') {
+                         navigator.permissions.query({ name: 'microphone' }).then(permissionStatus => {
+                             permissionStatus.onchange = () => {
+                                 console.log("Permission microphone changée:", permissionStatus.state);
+                                 // Mettre à jour l'état global si la permission est refusée
+                                 if (permissionStatus.state === 'denied') {
+                                     permissionGranted = false;
+                                     updatePermissionStatus("Accès microphone refusé. Modifiez les paramètres du site.", true);
+                                     if (pttButton) pttButton.disabled = true;
+                                     if (recognitionActive && recognition) {
+                                         try { recognition.abort(); } catch(e){} // Arrêter si en cours
+                                     }
+                                 } else if (permissionStatus.state === 'granted') {
+                                     permissionGranted = true;
+                                     updatePermissionStatus("Microphone et caméra prêts."); // Peut-être affiner ce message
+                                     if (pttButton) pttButton.disabled = false;
+                                 }
+                             };
+                         }).catch(err => console.error("Error querying microphone permission:", err));
+
+                         navigator.permissions.query({ name: 'camera' }).then(permissionStatus => {
+                             permissionStatus.onchange = () => {
+                                 console.log("Permission caméra changée:", permissionStatus.state);
+                                 // Mettre à jour l'état global si la permission est refusée
+                                 if (permissionStatus.state === 'denied') {
+                                     // Gérer l'état de la caméra si nécessaire, peut-être désactiver la fonction vision
+                                     console.warn("Accès caméra refusé.");
+                                 } else if (permissionStatus.state === 'granted') {
+                                     console.log("Accès caméra accordé.");
+                                     // Activer la fonction vision si nécessaire
+                                 }
+                             };
+                         }).catch(err => console.error("Error querying camera permission:", err));
+                    }
+
+
+                } catch (err) {
+                    console.error("getUserMedia failed during initialization:", err);
+                    permissionGranted = false; // Marquer la permission comme refusée en cas d'échec
+                    speechApiAvailable = false; // Désactiver la reconnaissance vocale si le micro n'est pas accessible
+                    if (pttButton) pttButton.disabled = true;
+
+                    let userMessage = "Impossible d'accéder aux périphériques média (microphone/caméra).";
+                    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                        userMessage = "L'accès au microphone et/ou à la caméra a été refusé. Veuillez l'autoriser dans les paramètres de votre navigateur pour ce site.";
+                    } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                         userMessage = "Aucun microphone ou caméra trouvé.";
+                    } else if (err.name === 'NotReadableError' || err.name === 'OverconstrainedError') {
+                         userMessage = "Les périphériques média sont peut-être déjà utilisés par une autre application.";
+                    } else {
+                         userMessage = `Erreur technique d'accès aux périphériques média: ${err.message || err.name}`;
+                    }
+                    updatePermissionStatus(userMessage, true);
+                    return false; // L'initialisation a échoué
+                }
+                // --- Fin de la demande explicite de permissions ---
+
+
+                // Initialiser l'instance de reconnaissance (seulement si getUserMedia a réussi ou n'a pas échoué explicitement)
+                if (permissionGranted !== false) { // Si la permission n'est pas explicitement refusée
+                     try {
+                         recognition = new SpeechRecognitionAPI();
+                         recognition.lang = 'fr-FR'; // Langue française
+                         recognition.continuous = true; // Important pour le mode PTT
+                         recognition.interimResults = false; // Simplifie la gestion des résultats
+
+                         speechApiAvailable = true;
+                         console.log("API SpeechRecognition initialisée.");
+                         if (pttButton) pttButton.disabled = false; // Activer le bouton PTT
+
+                         // --- Gestionnaires d'événements de reconnaissance (attachés une seule fois) ---
+                         let currentTranscript = ''; // Transcript accumulé pour une session d'écoute PTT
+
+                         recognition.onstart = () => {
+                             console.log("SpeechRecognition: onstart - Écoute démarrée.");
+                             recognitionActive = true;
+                             currentTranscript = ''; // Réinitialiser le transcript pour cette session
+                             if (pttButton) pttButton.classList.add('active');
+                             switchScreen('listening');
+                         };
+
+                         recognition.onresult = (event) => {
+                             console.log("SpeechRecognition: onresult");
+                             // Concaténer tous les résultats finaux reçus jusqu'à présent dans cette session
+                             let transcriptSegment = '';
+                             for (let i = event.resultIndex; i < event.results.length; ++i) {
+                                 if (event.results[i].isFinal) {
+                                     transcriptSegment += event.results[i][0].transcript + ' ';
+                                 }
+                                 // Ignorer les résultats non finaux car interimResults = false
+                             }
+                             if (transcriptSegment) {
+                                 currentTranscript += transcriptSegment;
+                                 console.log("Transcript final accumulé:", currentTranscript.trim());
+                             }
+                         };
+
+                         recognition.onerror = (event) => {
+                             console.error(`SpeechRecognition: onerror - Erreur: ${event.error}, Message: ${event.message}`);
+                             recognitionActive = false; // Marquer comme inactif
+                             if (pttButton) pttButton.classList.remove('active');
+
+                             let userMessage = "Une erreur de reconnaissance vocale s'est produite.";
+                             switch (event.error) {
+                                 case 'no-speech':
+                                     userMessage = "Je n'ai rien entendu. Essayez de parler plus clairement.";
+                                     break;
+                                 case 'audio-capture':
+                                     userMessage = "Problème technique avec le microphone. Vérifiez votre matériel ou les permissions système.";
+                                     break;
+                                 case 'not-allowed':
+                                 case 'permission-denied':
+                                     userMessage = "L'accès au microphone a été refusé. Veuillez l'autoriser dans les paramètres de votre navigateur pour ce site.";
+                                     permissionGranted = false; // Mettre à jour l'état global
+                                     updatePermissionStatus(userMessage, true);
+                                     if (pttButton) pttButton.disabled = true;
+                                     break;
+                                 case 'network':
+                                     userMessage = "Erreur réseau pendant la reconnaissance. Vérifiez votre connexion.";
+                                     break;
+                                 case 'aborted':
+                                     userMessage = "Écoute arrêtée."; // Souvent normal quand on appelle stop()
+                                     console.log("Reconnaissance arrêtée (aborted).");
+                                     break;
+                                 case 'service-not-allowed':
+                                      userMessage = "Le service de reconnaissance vocale est désactivé ou non autorisé par votre système/navigateur.";
+                                      break;
+                                 default:
+                                     userMessage = `Erreur inconnue (${event.error}): ${event.message || 'Aucun détail'}`;
+                             }
+
+                             // Si une promesse est en attente (speechPromiseCallbacks), la rejeter
+                             // Ne rejeter que si l'erreur n'est pas 'aborted' (qui est souvent normal)
+                             if (speechPromiseCallbacks && speechPromiseCallbacks.reject && event.error !== 'aborted') {
+                                 console.log("Rejet de la promesse de reconnaissance suite à une erreur.");
+                                 speechPromiseCallbacks.reject(new Error(userMessage));
+                             } else if (event.error !== 'aborted') {
+                                  // Si l'erreur survient en dehors d'une écoute PTT ou si la promesse a déjà été traitée
+                                  showErrorScreen(userMessage);
+                             }
+                             speechPromiseCallbacks = null; // Nettoyer les callbacks
+                             isListening = false; // S'assurer que l'état PTT est réinitialisé en cas d'erreur
+                         };
+
+                         recognition.onend = () => {
+                             console.log("SpeechRecognition: onend - Fin de l'écoute.");
+                             recognitionActive = false; // Marquer comme inactif
+                             if (pttButton) pttButton.classList.remove('active');
+
+                             // Si une promesse est en attente, la résoudre avec le transcript final accumulé
+                             if (speechPromiseCallbacks && speechPromiseCallbacks.resolve) {
+                                 console.log("Résolution de la promesse de reconnaissance avec le transcript final.");
+                                 speechPromiseCallbacks.resolve(currentTranscript.trim());
+                             } else {
+                                  console.log("onend appelé mais pas de promesse en attente ou déjà résolue/rejetée.");
+                             }
+                             // isListening est déjà mis à false dans handlePttEnd ou onerror
+                             speechPromiseCallbacks = null; // Nettoyer les callbacks
+                         };
+
+                     } catch (error) {
+                          console.error("Erreur lors de la création ou configuration de l'instance SpeechRecognition:", error);
+                          updatePermissionStatus("Erreur d'initialisation de la reconnaissance vocale.", true);
+                          speechApiAvailable = false;
+                          if (pttButton) pttButton.disabled = true;
+                          return false;
+                     }
+                }
+
+
+                return permissionGranted !== false; // Retourne true si la permission n'est pas explicitement refusée
+            }
+
+
+            /**
+             * Démarre une session d'écoute SpeechRecognition et retourne une promesse.
+             * Inclut une demande explicite de permission microphone si nécessaire.
+             * @returns {Promise<string>} Une promesse qui résout avec le texte reconnu ou rejette avec une erreur.
+             */
+            async function startSpeechRecognition() { // Rendre la fonction async
+                // Retourner une nouvelle promesse à chaque appel
+                return new Promise(async (resolve, reject) => { // Rendre l'exécuteur de promesse async
+                    if (!speechApiAvailable || !recognition) {
+                        reject(new Error("Reconnaissance vocale non initialisée ou non supportée."));
+                        return;
+                    }
+                    if (recognitionActive) {
+                        console.warn("Tentative de démarrage alors que la reconnaissance est déjà active.");
+                        reject(new Error("Une écoute est déjà en cours."));
+                        return;
+                    }
+                     if (permissionGranted === false) {
+                         // Message déjà affiché par updatePermissionStatus
+                         reject(new Error("L'accès au microphone a été refusé."));
+                         return;
+                     }
+
+                    // --- Nouvelle logique pour demander explicitement la permission si nécessaire ---
+                    // Si l'état de la permission est inconnu (probablement 'prompt' ou Permissions API non supportée)
+                    // Ou si la permission a été initialement accordée mais pourrait avoir été révoquée depuis
+                    let needsPermissionCheck = permissionGranted === null ||
+                                               (navigator.permissions && typeof navigator.permissions.query !== 'function') ||
+                                               (permissionGranted === true); // Vérifier à nouveau même si accordé avant
+
+                    if (needsPermissionCheck) {
+                        console.log("Vérification/Demande de permission microphone via getUserMedia...");
+                        try {
+                            // Tenter d'obtenir un flux audio pour déclencher le prompt ou vérifier l'état
+                            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                            console.log("getUserMedia successful, permission is currently granted.");
+                            permissionGranted = true; // Mettre à jour l'état
+                            updatePermissionStatus("Microphone et caméra prêts."); // Mettre à jour le message
+                            if (pttButton) pttButton.disabled = false; // S'assurer que le bouton est activé
+                            // Arrêter immédiatement le flux car nous n'en avons pas besoin ici
+                            stream.getTracks().forEach(track => track.stop());
+                        } catch (err) {
+                            console.error("getUserMedia failed:", err);
+                            permissionGranted = false; // Mettre à jour l'état
+                            let userMessage = "Impossible d'accéder au microphone.";
+                            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                                userMessage = "L'accès au microphone a été refusé. Veuillez l'autoriser dans les paramètres de votre navigateur pour ce site.";
+                            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                                 userMessage = "Aucun microphone trouvé.";
+                            } else if (err.name === 'NotReadableError' || err.name === 'OverconstrainedError') {
+                                 userMessage = "Le microphone est peut-être déjà utilisé par une autre application.";
+                            } else {
+                                 userMessage = `Erreur technique microphone: ${err.message || err.name}`;
+                            }
+                            updatePermissionStatus(userMessage, true);
+                            if (pttButton) pttButton.disabled = true;
+                            reject(new Error(userMessage)); // Rejeter la promesse
+                            return; // Arrêter l'exécution si getUserMedia échoue
+                        }
+                    }
+                    // --- Fin de la nouvelle logique ---
+
+                    // Si la permission est maintenant confirmée comme accordée
+                    if (permissionGranted === true) {
+                        console.log("Tentative de démarrage de l'écoute (recognition.start())...");
+                        // Stocker les callbacks de la promesse pour les utiliser dans les événements recognition
+                        speechPromiseCallbacks = { resolve, reject };
+
+                        try {
+                            // recognition.start() peut encore déclencher un prompt dans certains cas,
+                            // mais getUserMedia l'aura déjà géré si permissionGranted était null.
+                            recognition.start();
+                            // Le passage à l'état 'listening' est géré par recognition.onstart
+                        } catch (e) {
+                            console.error("Erreur immédiate lors de l'appel à recognition.start():", e);
+                            recognitionActive = false; // Assurer la désactivation
+                            speechPromiseCallbacks = null; // Nettoyer
+                            // Rejeter la promesse immédiatement
+                            reject(new Error(`Erreur technique au démarrage: ${e.message || e.name}`));
+                        }
+                    } else {
+                         // Si permissionGranted est false après la vérification/tentative
+                         reject(new Error("Accès microphone non accordé."));
+                    }
+                });
+            }
+
+            // --- Gestion du Bouton Push-to-Talk (PTT) ---
+
+            /** Gère l'appui sur le bouton PTT */
+            function handlePttStart(event) {
+                event.preventDefault(); // Empêche le comportement par défaut (ex: scroll sur mobile)
+                console.log("PTT Start");
+
+                if (!speechApiAvailable || permissionGranted === false) {
+                    console.warn("PTT ignoré: API non dispo ou permission refusée.");
+                    if (permissionGranted === false) {
+                         updatePermissionStatus("Accès microphone refusé. Modifiez les paramètres du site.", true);
+                    }
+                    return;
+                }
+                if (isListening || recognitionActive) {
+                     console.warn("PTT Start ignoré: déjà en écoute.");
+                     return;
+                }
+
+                isListening = true; // Marquer comme PTT enfoncé
+                if (pttButton) {
+                    pttButton.classList.add('active');
+                    pttButton.setAttribute('aria-pressed', 'true');
+                }
+
+                // Démarrer la reconnaissance et stocker la promesse pour attendre le résultat
+                const currentSpeechPromise = startSpeechRecognition();
+
+                // Attendre le résultat (ou l'erreur) de cette promesse spécifique
+                // Le traitement se fera dans processSpeechResult appelé par onend/onerror
+                currentSpeechPromise
+                    .then(result => {
+                        // Ce .then est appelé lorsque recognition.onend résout la promesse
+                        console.log("Promesse résolue par onend.");
+                        processSpeechResult(result);
+                    })
+                    .catch(error => {
+                        // Ce .catch est appelé lorsque startSpeechRecognition rejette immédiatement
+                        // ou lorsque recognition.onerror rejette la promesse
+                        console.error("Promesse rejetée:", error);
+                         // processSpeechResult gère l'affichage de l'erreur si elle vient de onerror
+                         // Si l'erreur vient du démarrage (startSpeechRecognition), il faut l'afficher ici
+                         if (!error.message.includes("reconnaissance vocale") && !error.message.includes("microphone")) { // Éviter double affichage
+                             showErrorScreen(error.message);
+                         }
+                         // Assurer la réinitialisation de l'état PTT en cas d'erreur au démarrage
+                         isListening = false;
+                         if (pttButton) {
+                             pttButton.classList.remove('active');
+                             pttButton.setAttribute('aria-pressed', 'false');
+                         }
+                    });
+            }
+
+            /** Gère le relâchement du bouton PTT */
+            function handlePttEnd(event) {
+                event.preventDefault(); // Empêche le comportement par défaut
+                console.log("PTT End");
+
+                if (!isListening) {
+                     console.warn("PTT End ignoré: n'était pas en écoute (isListening=false).");
+                     return; // Pas en écoute (peut arriver si erreur au start ou relâchement rapide)
+                }
+
+                isListening = false; // Marquer comme PTT relâché *immédiatement*
+                if (pttButton) {
+                     pttButton.classList.remove('active');
+                     pttButton.setAttribute('aria-pressed', 'false');
+                }
+
+                // Si la reconnaissance était active, l'arrêter.
+                // onend sera appelé de manière asynchrone et résoudra/rejettera la promesse.
+                if (recognitionActive && recognition) {
+                    console.log("Arrêt de la reconnaissance via recognition.stop()...");
+                    try {
+                        // Ne pas attendre ici, onend gérera la suite
+                        recognition.stop();
+                         // Afficher un message d'attente pendant que l'API traite les derniers sons
+                         const currentScreen = document.querySelector('.screen.active-screen');
+                         if (currentScreen === screens.listening) {
+                            // Optionnel: Modifier le texte sur l'écran d'écoute
+                            // screens.listening.querySelector('.listening-text').textContent = "Traitement...";
+                         }
+                    } catch (e) {
+                        console.error("Erreur lors de l'appel à recognition.stop():", e);
+                         // Si stop échoue, onend ne sera peut-être pas appelé.
+                         // Tenter de rejeter la promesse manuellement si elle existe encore.
+                         if (speechPromiseCallbacks && speechPromiseCallbacks.reject) {
+                             speechPromiseCallbacks.reject(new Error("Échec de l'arrêt manuel de la reconnaissance."));
+                             speechPromiseCallbacks = null; // Nettoyer
+                         }
+                         // Afficher une erreur générique
+                         showErrorScreen("Erreur lors de l'arrêt de l'écoute.");
+                    }
+                } else {
+                     // Si PTT End est appelé mais recognition n'était pas active (ex: erreur au start, arrêt très rapide)
+                     console.warn("PTT End: Recognition non active au moment de l'appel à stop(). La promesse a peut-être déjà été traitée.");
+                     // Si une promesse existe encore, c'est anormal, la rejeter pour éviter un blocage.
+                     if (speechPromiseCallbacks && speechPromiseCallbacks.reject) {
+                         console.warn("Rejet d'une promesse potentiellement orpheline.");
+                         speechPromiseCallbacks.reject(new Error("Écoute terminée prématurément ou état incohérent."));
+                         speechPromiseCallbacks = null;
+                     }
+                }
+                // Le traitement du résultat se fait dans le .then/.catch attaché à la promesse dans handlePttStart
+            }
+
+            /**
+             * Traite le résultat final (texte ou erreur) de la reconnaissance vocale et appelle Gemini si nécessaire.
+             * @param {string | Error} result - Le texte reconnu ou un objet Error.
+             */
+            async function processSpeechResult(result) {
+                console.log("Traitement du résultat final:", result);
+                switchScreen('response'); // Assurer qu'on est sur l'écran de réponse
+
+                if (result instanceof Error) {
+                    // C'est une erreur qui a rejeté la promesse
+                    queryTextElement.textContent = "Erreur de reconnaissance";
+                    // Correction: Utiliser single quotes pour la chaîne externe
+                    responseTextElement.innerHTML = `<p class="error-message">${result.message}</p>`;
+                } else if (typeof result === 'string') {
+                    const query = result.trim();
+                    queryTextElement.textContent = query || "[Aucun texte reconnu]"; // Afficher le texte (ou message si vide)
+
+                    if (!query) {
+                        responseTextElement.innerHTML = "<p>Je n'ai pas compris ou rien entendu. Veuillez réessayer.</p>";
+                    } else {
+                        // C'est une vraie requête -> Interroger Gemini (si configuré)
+                        if (GEMINI_API_KEY && GEMINI_API_KEY !== 'YOUR_API_KEY') {
+                            responseTextElement.innerHTML = "<p><i>Réflexion en cours...</i></p>"; // Message d'attente
+                            try {
+                                const answer = await queryGemini(query);
+                                displayMarkdownResponse(answer, responseTextElement); // Afficher la réponse formatée
+                            } catch (geminiError) {
+                                console.error("Erreur lors de l'appel à Gemini:", geminiError);
+                                // Correction: Utiliser single quotes pour la chaîne externe
+                                responseTextElement.innerHTML = `<p class="error-message">Désolé, une erreur s'est produite avec l'IA : ${geminiError.message}</p>`;
+                            }
+                        } else {
+                             // Si la clé API n'est pas configurée, afficher juste la requête
+                             console.warn("Clé API Gemini non configurée. Affichage de la requête uniquement.");
+                             responseTextElement.innerHTML = "<p><i>(Fonctionnalité IA non configurée)</i></p>";
+                        }
+                    }
+                } else {
+                     console.error("Résultat de reconnaissance inattendu (ni string ni Error):", result);
+                     queryTextElement.textContent = "Erreur Inattendue";
+                     // Correction: Utiliser single quotes pour la chaîne externe
+                     responseTextElement.innerHTML = '<p class="error-message">Un problème inattendu est survenu lors du traitement de la voix.</p>';
+                }
+            }
+
+            // --- Fonctions Utilitaires (Minuteur, Musique, Capture, Gemini, Markdown) ---
+
+            // Minuteur
+            function formatTime(seconds) {
+                const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+                const secs = (seconds % 60).toString().padStart(2, '0');
+                return `${mins}:${secs}`;
+            }
+
+            timerStartButton?.addEventListener('click', () => {
+                if (!timerDisplay) return;
+                if (isTimerRunning) {
+                    clearInterval(timerInterval);
+                    timerStartButton.textContent = 'Reprendre';
+                    timerStartButton.setAttribute('aria-label', 'Reprendre le minuteur');
+                    isTimerRunning = false;
+                } else {
+                    timerStartButton.textContent = 'Pause';
+                    timerStartButton.setAttribute('aria-label', 'Mettre le minuteur en pause');
+                    // Démarrer ou reprendre le comptage
+                    timerInterval = setInterval(() => {
+                        timerSeconds++;
+                        timerDisplay.textContent = formatTime(timerSeconds);
+                    }, 1000);
+                    isTimerRunning = true;
+                }
+            });
+
+            timerResetButton?.addEventListener('click', () => {
+                if (!timerDisplay || !timerStartButton) return;
+                clearInterval(timerInterval);
+                timerSeconds = 0;
+                timerDisplay.textContent = formatTime(timerSeconds);
+                timerStartButton.textContent = 'Démarrer';
+                timerStartButton.setAttribute('aria-label', 'Démarrer le minuteur');
+                isTimerRunning = false;
+            });
+
+            // Musique (Simulation)
+            playPauseButton?.addEventListener('click', () => {
+                const icon = playPauseButton.querySelector('i');
+                if (!icon) return;
+                if (isMusicPlaying) {
+                    icon.classList.replace('fa-pause', 'fa-play');
+                    playPauseButton.setAttribute('aria-label', 'Lecture');
+                    isMusicPlaying = false;
+                    console.log("Musique mise en pause (simulation)");
+                    // TODO: Ajouter la logique réelle pour mettre la musique en pause
+                } else {
+                    icon.classList.replace('fa-play', 'fa-pause');
+                     playPauseButton.setAttribute('aria-label', 'Pause');
+                    isMusicPlaying = true;
+                    console.log("Musique en lecture (simulation)");
+                    // TODO: Ajouter la logique réelle pour démarrer la musique
+                }
+            });
+             // TODO: Ajouter listeners et logique pour prev/next track
+
+            // Vision (Implémentation réelle)
+            let videoStream = null; // Pour stocker le flux vidéo
+            const videoElement = document.createElement('video'); // Élément vidéo caché pour afficher le flux
+            videoElement.style.display = 'none'; // Cacher l'élément vidéo
+            videoElement.setAttribute('playsinline', ''); // Important pour iOS
+            document.body.appendChild(videoElement); // Ajouter au DOM
+
+            const canvasElement = document.createElement('canvas'); // Élément canvas pour capturer l'image
+            const context = canvasElement.getContext('2d');
+
+            // Fonction pour démarrer le flux vidéo
+            async function startVideoStream() {
+                if (videoStream) {
+                    console.log("Video stream already active.");
+                    return true; // Déjà démarré
+                }
+                // Vérifier la permission caméra avant de démarrer
+                if (permissionGranted === false) {
+                     console.warn("Cannot start video stream: camera permission denied.");
+                     showErrorScreen("L'accès à la caméra a été refusé. Veuillez l'autoriser dans les paramètres.");
+                     return false;
+                }
+
+                try {
+                    console.log("Attempting to start video stream...");
+                    // getUserMedia pour la vidéo (permission déjà demandée à l'initialisation ou vérifiée avant)
+                    videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    videoElement.srcObject = videoStream;
+                    videoElement.play(); // Démarrer la lecture pour que l'image s'affiche
+
+                    // Attendre que les métadonnées de la vidéo soient chargées pour connaître la taille
+                    await new Promise((resolve, reject) => {
+                         videoElement.onloadedmetadata = resolve;
+                         videoElement.onerror = reject; // Gérer les erreurs de chargement
+                    });
+                    console.log("Video stream started successfully.");
+                    return true;
+                } catch (err) {
+                    console.error("Error starting video stream:", err);
+                    let userMessage = "Impossible de démarrer le flux vidéo.";
+                    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                        userMessage = "L'accès à la caméra a été refusé. Veuillez l'autoriser dans les paramètres de votre navigateur pour ce site.";
+                        permissionGranted = false; // Mettre à jour si refusé ici
+                    } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                         userMessage = "Aucune caméra trouvée.";
+                    } else if (err.name === 'NotReadableError' || err.name === 'OverconstrainedError') {
+                         userMessage = "La caméra est peut-être déjà utilisée par une autre application.";
+                    } else {
+                         userMessage = `Erreur technique caméra: ${err.message || err.name}`;
+                    }
+                    showErrorScreen(userMessage);
+                    videoStream = null;
+                    return false;
+                }
+            }
+
+            // Fonction pour arrêter le flux vidéo
+            function stopVideoStream() {
+                if (videoStream) {
+                    console.log("Stopping video stream.");
+                    videoStream.getTracks().forEach(track => track.stop());
+                    videoStream = null;
+                    videoElement.srcObject = null;
+                }
+            }
+
+            // Gérer le clic sur le bouton de capture
+            captureButton?.addEventListener('click', async () => {
+                console.log('Capture button clicked.');
+                // Assurez-vous que le flux vidéo est démarré avant de capturer
+                const streamStarted = await startVideoStream();
+                if (!streamStarted) {
+                    console.warn("Cannot capture image: video stream not started.");
+                    return; // Arrêter si le flux n'a pas pu démarrer
+                }
+
+                const cameraPlaceholder = document.querySelector('.camera-placeholder');
+                if (cameraPlaceholder) {
+                    // Simuler un flash
+                    cameraPlaceholder.style.transition = 'background-color 0.1s ease';
+                    cameraPlaceholder.style.backgroundColor = '#aaa';
+                    setTimeout(() => {
+                        cameraPlaceholder.style.backgroundColor = ''; // Réinitialiser
+                    }, 150);
+                }
+
+                // S'assurer que la vidéo a des dimensions valides
+                 if (!videoElement.videoWidth || !videoElement.videoHeight) {
+                     console.error("Video dimensions are zero, cannot capture.");
+                     showErrorScreen("Impossible de capturer l'image (dimensions vidéo invalides).");
+                     return;
+                 }
+
+                // Capturer l'image sur le canvas
+                canvasElement.width = videoElement.videoWidth;
+                canvasElement.height = videoElement.videoHeight;
+                try {
+                    context.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+                } catch (drawError) {
+                    console.error("Error drawing video frame to canvas:", drawError);
+                    showErrorScreen("Erreur lors de la capture de l'image.");
+                    return;
+                }
+
+
+                // Obtenir l'image au format Data URL (ou Blob si nécessaire)
+                 let imageDataUrl;
+                 try {
+                     imageDataUrl = canvasElement.toDataURL('image/png');
+                     console.log('Image captured:', imageDataUrl.substring(0, 50) + '...'); // Log partiel
+                 } catch (toDataUrlError) {
+                     console.error("Error converting canvas to Data URL:", toDataUrlError);
+                     showErrorScreen("Erreur lors de la conversion de l'image capturée.");
+                     return;
+                 }
+
+
+                // TODO: Envoyer imageDataUrl à Gemini Vision ou traiter localement
+                // Pour l'instant, afficher une confirmation et potentiellement l'image capturée
+
+                // Afficher une confirmation sur l'écran de réponse
+                switchScreen('response');
+                queryTextElement.textContent = "Vision";
+                // Afficher l'image capturée (optionnel, peut être lourd)
+                // responseTextElement.innerHTML = `<p>Image capturée.</p><img src="${imageDataUrl}" alt="Captured Image" style="max-width:100%; height:auto;">`;
+                responseTextElement.innerHTML = "<p>Image capturée.</p>"; // Affichage simple
+
+                // Optionnel: Arrêter le flux vidéo après la capture si vous n'en avez plus besoin immédiatement
+                // stopVideoStream(); // Décommenter si vous voulez arrêter le flux après chaque capture
+            });
+
+            // Assurez-vous d'arrêter le flux vidéo lorsque l'application se ferme ou change d'écran majeur si nécessaire
+            // Par exemple, ajouter un listener pour l'événement beforeunload ou gérer l'arrêt lors du changement d'écran
+            window.addEventListener('beforeunload', stopVideoStream);
+            // Ou lors du changement d'écran si le flux ne doit être actif que sur l'écran Vision
+            // (Cela nécessiterait une logique plus complexe dans switchScreen)
+
+            // Appel API Gemini
+            async function queryGemini(prompt) {
+                console.log("Querying Gemini with:", prompt);
+                if (!prompt) { // Vérification simplifiée
+                    console.warn("Requête Gemini annulée: prompt vide.");
+                    // Pas besoin de lancer une erreur ici, processSpeechResult gère déjà le cas vide
+                    return "Je n'ai pas compris, veuillez fournir une requête.";
+                }
+                 if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_API_KEY') {
+                     console.error("Clé API Gemini manquante ou non configurée.");
+                     // Lancer une erreur pour qu'elle soit attrapée par processSpeechResult
+                     throw new Error("La clé API pour l'IA n'est pas configurée.");
+                 }
+
+                responseTextElement.innerHTML = "<p><i>Réflexion en cours...</i></p>"; // Afficher pendant l'appel
+
+                try {
+                    const response = await fetch(GEMINI_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: prompt }] }],
+                            generationConfig: { /* Options si besoin */ },
+                             safetySettings: [ /* Configuration de sécurité */
+                                 { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                                 { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                                 { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                                 { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+                             ]
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        console.error('Erreur API Gemini:', response.status, data);
+                        const errorMessage = data?.error?.message || `Erreur HTTP ${response.status}`;
+                        throw new Error(`Erreur de l'API IA : ${errorMessage}`); // Lancer pour catch externe
+                    }
+
+                    console.log("Réponse Gemini brute:", data);
+
+                    // Gestion des réponses bloquées ou vides
+                    if (!data.candidates || data.candidates.length === 0) {
+                         if (data.promptFeedback?.blockReason) {
+                             const reason = data.promptFeedback.blockReason.replace(/_/g, ' ').toLowerCase();
+                             console.warn(`Réponse bloquée par Gemini. Raison: ${reason}`);
+                             return `Je ne peux pas répondre car la requête a été bloquée pour raison de sécurité (${reason}).`;
+                         } else {
+                             console.warn("Réponse Gemini vide ou sans candidats.");
+                             return "Désolé, je n'ai pas pu générer de réponse. Veuillez réessayer.";
+                         }
+                    }
+
+                    // Gestion des fins anormales
+                    const candidate = data.candidates[0];
+                     if (candidate.finishReason && candidate.finishReason !== 'STOP' && candidate.finishReason !== 'MAX_TOKENS') {
+                         const reason = candidate.finishReason.replace(/_/g, ' ').toLowerCase();
+                         console.warn(`Réponse Gemini terminée prématurément. Raison: ${reason}`);
+                         const partialText = candidate.content?.parts?.[0]?.text || "";
+                         return partialText + `\n\n_(Note : La réponse a été interrompue : ${reason}.)_`;
+                     }
+
+                    // Réponse nominale
+                    const responseText = candidate.content?.parts?.[0]?.text;
+                    if (responseText) {
+                        return responseText;
+                    } else {
+                        console.warn("Structure de réponse Gemini inattendue:", data);
+                        return "Désolé, j'ai reçu une réponse dans un format inattendu.";
+                    }
+
+                } catch (error) {
+                    console.error('Erreur lors de la requête à Gemini:', error);
+                     // Renvoyer l'erreur pour qu'elle soit gérée par l'appelant (processSpeechResult)
+                     // Le message d'erreur est déjà formaté dans le bloc catch
+                     throw error; // Relancer l'erreur
+                }
+            }
+
+            // --- Conversion Markdown vers HTML (Basique) ---
+            function markdownToHtml(markdown) {
+                if (typeof markdown !== 'string') return '';
+                console.log("Converting Markdown to HTML...");
+
+                let html = markdown;
+                // Échapper le HTML potentiel dans le markdown pour éviter les injections simples
+                // html = html.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+                // Blocs de code (avant les autres)
+                html = html.replace(/```([\s\S]*?)```/gs, (match, code) =>
+                    // Échapper le contenu du code pour l'affichage
+                    `<pre><code>${code.trim().replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`
+                );
+
+                // Titres
+                html = html.replace(/^### (.*$)/gm, '<h3>$1</h3>');
+                html = html.replace(/^## (.*$)/gm, '<h2>$1</h2>');
+                html = html.replace(/^# (.*$)/gm, '<h1>$1</h1>');
+
+                // Lignes horizontales
+                html = html.replace(/^(?:-{3,}|_{3,}|\*{3,})$/gm, '<hr>');
+
+                // Blockquotes (multilignes gérées)
+                html = html.replace(/^(?:> (?:.*\n?))+/gm, (match) => {
+                    const content = match.replace(/^> /gm, '').trim();
+                    // Convertir récursivement le contenu du blockquote (simple ici)
+                    return `<blockquote>${markdownToHtmlSimpleInline(content)}</blockquote>`;
+                });
+
+                // Listes (ul/ol) - Gestion basique, fusionne les adjacentes
+                html = html.replace(/^([*+-]) (.*(?:\n(?!\1 | {2,}).*)*)/gm, (match, marker, itemContent) => `<ul><li>${markdownToHtmlSimpleInline(itemContent.trim())}</li></ul>`);
+                html = html.replace(/^(\d+)\. (.*(?:\n(?!\d+\. | {2,}).*)*)/gm, (match, num, itemContent) => `<ol start="${num}"><li>${markdownToHtmlSimpleInline(itemContent.trim())}</li></ol>`);
+                // Fusionner les listes adjacentes du même type
+                html = html.replace(/<\/ul>\s*<ul>/g, '');
+                html = html.replace(/<\/ol>\s*<ol(?: start="\d+")?>/g, ''); // Gérer start attribute si nécessaire
+
+
+                // Images
+                html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
+
+                // Liens
+                html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+                // Éléments inline (après les blocs)
+                html = markdownToHtmlSimpleInline(html);
+
+                // Paragraphes (lignes restantes non vides et non déjà dans un bloc)
+                 html = html.split('\n').map(line => {
+                     line = line.trim();
+                     if (line.length === 0) return '';
+                     // Si la ligne ne commence PAS par une balise HTML bloc connue ou un élément inline déjà traité
+                     if (!line.match(/^<\/?(h[1-6]|ul|ol|li|blockquote|hr|pre|img|table|thead|tbody|tr|th|td|strong|em|code|a|br)/i)) {
+                         return `<p>${line}</p>`; // line contient déjà les éléments inline formatés
+                     }
+                     return line;
+                 }).join('\n');
+
+                // Nettoyages finaux
+                 html = html.replace(/<p>\s*<\/p>/g, ''); // Supprimer paragraphes vides
+                 html = html.replace(/<\/blockquote>\s*<blockquote>/g, ''); // Fusionner blockquotes adjacentes (simple)
+                 html = html.replace(/\n/g, ''); // Supprimer les sauts de ligne restants (le CSS gère l'espacement)
+
+                return html;
+            }
+            // Fonction helper pour les éléments inline (gras, italique, code)
+            function markdownToHtmlSimpleInline(text) {
+                 // Ordre important: ** avant *
+                 text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'); // Gras **
+                 text = text.replace(/__(.*?)__/g, '<strong>$1</strong>'); // Gras __
+                 text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');     // Italique *
+                 text = text.replace(/_(.*?)_/g, '<em>$1</em>');     // Italique _
+                 text = text.replace(/`([^`]+)`/g, '<code>$1</code>'); // Code inline
+                 return text;
+            }
+
+
+            /**
+             * Affiche du texte Markdown converti en HTML dans un élément donné.
+             * @param {string} markdownText - Le texte en Markdown.
+             * @param {HTMLElement} element - L'élément où afficher le HTML.
+             */
+            function displayMarkdownResponse(markdownText, element) {
+                if (element) {
+                    element.innerHTML = markdownToHtml(markdownText);
+                    element.style.opacity = 0; // Pour effet de fondu
+                    element.scrollTop = 0; // Remonter en haut de la réponse
+                    setTimeout(() => { element.style.opacity = 1; }, 50);
+                } else {
+                    console.error("Élément d'affichage de la réponse non trouvé.");
+                }
+            }
+
+
+            // --- Gestion des Contrôles (Scroll, Back buttons) ---
+
+            scrollUpButton?.addEventListener('click', () => {
+                const currentScreenElement = document.querySelector('.screen.active-screen');
+                const currentScreenName = currentScreenElement?.dataset?.screenName;
+                // Autoriser le scroll sauf pendant l'écoute active
+                if (currentScreenName === 'listening') return;
+
+                console.log("Scroll Up clicked. Current index:", currentScreenIndex);
+                let newIndex = currentScreenIndex - 1;
+                if (newIndex < 0) {
+                    newIndex = screenOrder.length - 1; // Boucle vers la fin
+                }
+                switchScreen(screenOrder[newIndex]);
+            });
+
+            scrollDownButton?.addEventListener('click', () => {
+                 const currentScreenElement = document.querySelector('.screen.active-screen');
+                 const currentScreenName = currentScreenElement?.dataset?.screenName;
+                 // Autoriser le scroll sauf pendant l'écoute active
+                 if (currentScreenName === 'listening') return;
+
+                console.log("Scroll Down clicked. Current index:", currentScreenIndex);
+                let newIndex = currentScreenIndex + 1;
+                if (newIndex >= screenOrder.length) {
+                    newIndex = 0; // Boucle vers le début
+                }
+                switchScreen(screenOrder[newIndex]);
+            });
+
+            // Ajouter des gestionnaires pour TOUS les boutons "Retour"
+            document.querySelectorAll('.back-button').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const targetScreen = event.currentTarget.dataset.targetScreen;
+                    console.log(`Back button clicked, target: ${targetScreen}`);
+                    if (targetScreen && screens[targetScreen]) {
+                        switchScreen(targetScreen);
+                    } else {
+                        switchScreen('home'); // Retour à l'accueil par défaut
+                    }
+                });
+            });
+
+
+            // --- Initialisation de l'Application ---
+            async function initializeApp() {
+                console.log("Initialisation de l'application Rabbit R1...");
+                switchScreen('home'); // Afficher l'écran d'accueil
+
+                // Initialiser la reconnaissance vocale et vérifier/demander permissions
+                const speechReady = await initializeSpeechRecognition();
+
+                if (speechReady) {
+                    // Attacher les gestionnaires PTT seulement si l'API est prête et permission non refusée
+                    if (pttButton) {
+                        // Utiliser mousedown/mouseup pour le clic souris
+                        pttButton.addEventListener('mousedown', handlePttStart);
+                        pttButton.addEventListener('mouseup', handlePttEnd);
+                        // Gérer le cas où la souris quitte le bouton pendant l'appui
+                        pttButton.addEventListener('mouseleave', (e) => {
+                            if (isListening) {
+                                 console.log("PTT Mouse Leave while listening - Triggering PTT End");
+                                 handlePttEnd(e); // Simuler un relâchement
+                            }
+                        });
+
+                        // Utiliser touchstart/touchend pour le tactile
+                        pttButton.addEventListener('touchstart', handlePttStart, { passive: false }); // passive: false pour preventDefault
+                        pttButton.addEventListener('touchend', handlePttEnd);
+                        // Gérer l'annulation du toucher (ex: doigt glisse en dehors)
+                        pttButton.addEventListener('touchcancel', (e) => {
+                             if (isListening) {
+                                 console.log("PTT Touch Cancel while listening - Triggering PTT End");
+                                 handlePttEnd(e); // Simuler un relâchement
+                             }
+                        });
+
+                        console.log("Gestionnaires PTT attachés.");
+                    } else {
+                        console.error("Bouton PTT non trouvé !");
+                    }
+                } else {
+                     console.warn("Initialisation de la reconnaissance vocale échouée ou permission refusée. PTT restera désactivé.");
+                     // Le bouton PTT devrait déjà être désactivé par initializeSpeechRecognition
+                }
+                console.log("Application initialisée et prête.");
+            }
+
+            // Démarrer l'initialisation une fois le DOM chargé
+            initializeApp();
+
+        }); // Fin du DOMContentLoaded
+    </script>
 </body>
 </html>
