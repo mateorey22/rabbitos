@@ -129,11 +129,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Initialisation de la Reconnaissance Vocale ---
 
     /**
-     * Initialise l'API SpeechRecognition, vérifie les permissions et configure les callbacks.
-     * @returns {Promise<boolean>} Promesse résolue avec true si l'API est prête et la permission n'est pas refusée, false sinon.
+     * Initialise l'API SpeechRecognition et demande les permissions microphone et caméra.
+     * @returns {Promise<boolean>} Promesse résolue avec true si l'API est prête et les permissions nécessaires sont accordées ou demandées, false sinon.
      */
     async function initializeSpeechRecognition() {
-        console.log("Initializing Speech Recognition...");
+        console.log("Initializing Speech Recognition and requesting permissions...");
         // Vérifier la compatibilité du navigateur
         const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognitionAPI) {
@@ -145,10 +145,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Vérifier le contexte sécurisé (HTTPS ou localhost)
-        // Note: SpeechRecognition peut parfois fonctionner sur HTTP localhost, mais getUserMedia (pour la permission) nécessite un contexte sécurisé.
         if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
              console.warn("Contexte non sécurisé détecté.");
-             updatePermissionStatus("Le microphone nécessite une connexion sécurisée (HTTPS).", true);
+             updatePermissionStatus("Le microphone et la caméra nécessitent une connexion sécurisée (HTTPS).", true);
              speechApiAvailable = false;
              if (pttButton) pttButton.disabled = true;
              return false;
@@ -162,162 +161,190 @@ document.addEventListener('DOMContentLoaded', () => {
              return false;
         }
 
-
-        // Initialiser l'instance de reconnaissance
+        // --- Demander explicitement les permissions microphone et caméra au démarrage ---
         try {
-            recognition = new SpeechRecognitionAPI();
-        } catch (error) {
-             console.error("Erreur lors de la création de l'instance SpeechRecognition:", error);
-             updatePermissionStatus("Erreur d'initialisation de la reconnaissance vocale.", true);
-             speechApiAvailable = false;
-             if (pttButton) pttButton.disabled = true;
-             return false;
-        }
+            console.log("Attempting to get microphone and camera permissions via getUserMedia...");
+            // Demander les deux permissions en même temps
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+            console.log("getUserMedia successful, permissions granted.");
+            permissionGranted = true; // Supposons que si getUserMedia réussit, les permissions sont accordées
+            updatePermissionStatus("Microphone et caméra prêts.");
 
-        recognition.lang = 'fr-FR';
-        recognition.continuous = true; // Important pour le mode PTT
-        recognition.interimResults = false; // Simplifie la gestion des résultats
+            // Arrêter immédiatement les pistes car nous n'en avons pas besoin pour l'initialisation
+            stream.getTracks().forEach(track => track.stop());
 
-        speechApiAvailable = true;
-        console.log("API SpeechRecognition initialisée.");
-        if (pttButton) pttButton.disabled = false; // Activer le bouton (sera désactivé si permission refusée plus tard)
-        updatePermissionStatus("Prêt."); // Message initial neutre
-
-        // --- Gestionnaires d'événements de reconnaissance (attachés une seule fois) ---
-        let currentTranscript = ''; // Transcript accumulé pour une session d'écoute PTT
-
-        recognition.onstart = () => {
-            console.log("SpeechRecognition: onstart - Écoute démarrée.");
-            recognitionActive = true;
-            currentTranscript = ''; // Réinitialiser le transcript pour cette session
-            if (pttButton) pttButton.classList.add('active');
-            switchScreen('listening');
-        };
-
-        recognition.onresult = (event) => {
-            console.log("SpeechRecognition: onresult");
-            // Concaténer tous les résultats finaux reçus jusqu'à présent dans cette session
-            let transcriptSegment = '';
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-                if (event.results[i].isFinal) {
-                    transcriptSegment += event.results[i][0].transcript + ' ';
-                }
-                // Ignorer les résultats non finaux car interimResults = false
-            }
-            if (transcriptSegment) {
-                currentTranscript += transcriptSegment;
-                console.log("Transcript final accumulé:", currentTranscript.trim());
-            }
-        };
-
-        recognition.onerror = (event) => {
-            console.error(`SpeechRecognition: onerror - Erreur: ${event.error}, Message: ${event.message}`);
-            recognitionActive = false; // Marquer comme inactif
-            if (pttButton) pttButton.classList.remove('active');
-
-            let userMessage = "Une erreur de reconnaissance vocale s'est produite.";
-            switch (event.error) {
-                case 'no-speech':
-                    userMessage = "Je n'ai rien entendu. Essayez de parler plus clairement.";
-                    break;
-                case 'audio-capture':
-                    userMessage = "Problème technique avec le microphone. Vérifiez votre matériel ou les permissions système.";
-                    break;
-                case 'not-allowed':
-                case 'permission-denied':
-                    userMessage = "L'accès au microphone a été refusé. Veuillez l'autoriser dans les paramètres de votre navigateur pour ce site.";
-                    permissionGranted = false;
-                    updatePermissionStatus(userMessage, true);
-                    if (pttButton) pttButton.disabled = true;
-                    break;
-                case 'network':
-                    userMessage = "Erreur réseau pendant la reconnaissance. Vérifiez votre connexion.";
-                    break;
-                case 'aborted':
-                    userMessage = "Écoute arrêtée."; // Souvent normal quand on appelle stop()
-                    console.log("Reconnaissance arrêtée (aborted).");
-                    break;
-                case 'service-not-allowed':
-                     userMessage = "Le service de reconnaissance vocale est désactivé ou non autorisé par votre système/navigateur.";
-                     break;
-                default:
-                    userMessage = `Erreur inconnue (${event.error}): ${event.message || 'Aucun détail'}`;
-            }
-
-            // Si une promesse est en attente (speechPromiseCallbacks), la rejeter
-            // Ne rejeter que si l'erreur n'est pas 'aborted' (qui est souvent normal)
-            if (speechPromiseCallbacks && speechPromiseCallbacks.reject && event.error !== 'aborted') {
-                console.log("Rejet de la promesse de reconnaissance suite à une erreur.");
-                speechPromiseCallbacks.reject(new Error(userMessage));
-            } else if (event.error !== 'aborted') {
-                 // Si l'erreur survient en dehors d'une écoute PTT ou si la promesse a déjà été traitée
-                 showErrorScreen(userMessage);
-            }
-            speechPromiseCallbacks = null; // Nettoyer les callbacks
-            isListening = false; // S'assurer que l'état PTT est réinitialisé en cas d'erreur
-        };
-
-        recognition.onend = () => {
-            console.log("SpeechRecognition: onend - Fin de l'écoute.");
-            recognitionActive = false; // Marquer comme inactif
-            if (pttButton) pttButton.classList.remove('active');
-
-            // Si une promesse est en attente, la résoudre avec le transcript final accumulé
-            if (speechPromiseCallbacks && speechPromiseCallbacks.resolve) {
-                console.log("Résolution de la promesse de reconnaissance avec le transcript final.");
-                speechPromiseCallbacks.resolve(currentTranscript.trim());
-            } else {
-                 console.log("onend appelé mais pas de promesse en attente ou déjà résolue/rejetée.");
-            }
-            // isListening est déjà mis à false dans handlePttEnd ou onerror
-            speechPromiseCallbacks = null; // Nettoyer les callbacks
-        };
-
-        // --- Vérification initiale des permissions ---
-        // Utiliser l'API Permissions pour vérifier l'état sans déclencher de prompt si possible
-        try {
+            // Optionnel: Utiliser l'API Permissions pour suivre les changements futurs si supporté
             if (navigator.permissions && typeof navigator.permissions.query === 'function') {
-                const permissionStatus = await navigator.permissions.query({ name: 'microphone' });
-                permissionGranted = (permissionStatus.state === 'granted');
-                console.log("Permission microphone initiale:", permissionStatus.state);
-
-                const handlePermissionChange = () => {
-                    console.log("Permission microphone changée:", permissionStatus.state);
-                    permissionGranted = (permissionStatus.state === 'granted');
-                     if (permissionStatus.state === 'denied') {
-                         updatePermissionStatus("Accès microphone refusé. Modifiez les paramètres du site.", true);
-                         if (pttButton) pttButton.disabled = true;
-                         if (recognitionActive && recognition) {
-                             try { recognition.abort(); } catch(e){} // Arrêter si en cours
+                 navigator.permissions.query({ name: 'microphone' }).then(permissionStatus => {
+                     permissionStatus.onchange = () => {
+                         console.log("Permission microphone changée:", permissionStatus.state);
+                         // Mettre à jour l'état global si la permission est refusée
+                         if (permissionStatus.state === 'denied') {
+                             permissionGranted = false;
+                             updatePermissionStatus("Accès microphone refusé. Modifiez les paramètres du site.", true);
+                             if (pttButton) pttButton.disabled = true;
+                             if (recognitionActive && recognition) {
+                                 try { recognition.abort(); } catch(e){} // Arrêter si en cours
+                             }
+                         } else if (permissionStatus.state === 'granted') {
+                             permissionGranted = true;
+                             updatePermissionStatus("Microphone et caméra prêts."); // Peut-être affiner ce message
+                             if (pttButton) pttButton.disabled = false;
                          }
-                     } else if (permissionStatus.state === 'granted') {
-                         updatePermissionStatus("Prêt.");
-                         if (pttButton) pttButton.disabled = false;
-                     } else { // 'prompt'
-                         updatePermissionStatus("Cliquez et maintenez pour autoriser le micro.");
-                         if (pttButton) pttButton.disabled = false; // Autoriser à essayer de déclencher le prompt
-                     }
-                };
+                     };
+                 }).catch(err => console.error("Error querying microphone permission:", err));
 
-                handlePermissionChange(); // Appeler une fois pour définir l'état initial
-                permissionStatus.onchange = handlePermissionChange; // Écouter les changements
-
-            } else {
-                 console.warn("Permissions API non supportée. La permission sera demandée au premier usage.");
-                 updatePermissionStatus("Prêt. L'autorisation micro sera demandée.");
-                 // On ne peut pas connaître l'état initial, on suppose 'prompt' ou 'granted'
-                 permissionGranted = null; // État inconnu
-                 if (pttButton) pttButton.disabled = false;
+                 navigator.permissions.query({ name: 'camera' }).then(permissionStatus => {
+                     permissionStatus.onchange = () => {
+                         console.log("Permission caméra changée:", permissionStatus.state);
+                         // Mettre à jour l'état global si la permission est refusée
+                         if (permissionStatus.state === 'denied') {
+                             // Gérer l'état de la caméra si nécessaire, peut-être désactiver la fonction vision
+                             console.warn("Accès caméra refusé.");
+                         } else if (permissionStatus.state === 'granted') {
+                             console.log("Accès caméra accordé.");
+                             // Activer la fonction vision si nécessaire
+                         }
+                     };
+                 }).catch(err => console.error("Error querying camera permission:", err));
             }
+
+
         } catch (err) {
-            console.error("Erreur lors de la vérification/suivi des permissions:", err);
-            updatePermissionStatus("Impossible de vérifier la permission micro.", true);
-            // On suppose qu'on peut quand même essayer, le navigateur gérera
-            permissionGranted = null; // État inconnu
-            if (pttButton) pttButton.disabled = false;
+            console.error("getUserMedia failed during initialization:", err);
+            permissionGranted = false; // Marquer la permission comme refusée en cas d'échec
+            speechApiAvailable = false; // Désactiver la reconnaissance vocale si le micro n'est pas accessible
+            if (pttButton) pttButton.disabled = true;
+
+            let userMessage = "Impossible d'accéder aux périphériques média (microphone/caméra).";
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                userMessage = "L'accès au microphone et/ou à la caméra a été refusé. Veuillez l'autoriser dans les paramètres de votre navigateur pour ce site.";
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                 userMessage = "Aucun microphone ou caméra trouvé.";
+            } else if (err.name === 'NotReadableError' || err.name === 'OverconstrainedError') {
+                 userMessage = "Les périphériques média sont peut-être déjà utilisés par une autre application.";
+            } else {
+                 userMessage = `Erreur technique d'accès aux périphériques média: ${err.message || err.name}`;
+            }
+            updatePermissionStatus(userMessage, true);
+            return false; // L'initialisation a échoué
+        }
+        // --- Fin de la demande explicite de permissions ---
+
+
+        // Initialiser l'instance de reconnaissance (seulement si getUserMedia a réussi ou n'a pas échoué explicitement)
+        if (permissionGranted !== false) { // Si la permission n'est pas explicitement refusée
+             try {
+                 recognition = new SpeechRecognitionAPI();
+                 recognition.lang = 'fr-FR';
+                 recognition.continuous = true; // Important pour le mode PTT
+                 recognition.interimResults = false; // Simplifie la gestion des résultats
+
+                 speechApiAvailable = true;
+                 console.log("API SpeechRecognition initialisée.");
+                 if (pttButton) pttButton.disabled = false; // Activer le bouton PTT
+
+                 // --- Gestionnaires d'événements de reconnaissance (attachés une seule fois) ---
+                 let currentTranscript = ''; // Transcript accumulé pour une session d'écoute PTT
+
+                 recognition.onstart = () => {
+                     console.log("SpeechRecognition: onstart - Écoute démarrée.");
+                     recognitionActive = true;
+                     currentTranscript = ''; // Réinitialiser le transcript pour cette session
+                     if (pttButton) pttButton.classList.add('active');
+                     switchScreen('listening');
+                 };
+
+                 recognition.onresult = (event) => {
+                     console.log("SpeechRecognition: onresult");
+                     // Concaténer tous les résultats finaux reçus jusqu'à présent dans cette session
+                     let transcriptSegment = '';
+                     for (let i = event.resultIndex; i < event.results.length; ++i) {
+                         if (event.results[i].isFinal) {
+                             transcriptSegment += event.results[i][0].transcript + ' ';
+                         }
+                         // Ignorer les résultats non finaux car interimResults = false
+                     }
+                     if (transcriptSegment) {
+                         currentTranscript += transcriptSegment;
+                         console.log("Transcript final accumulé:", currentTranscript.trim());
+                     }
+                 };
+
+                 recognition.onerror = (event) => {
+                     console.error(`SpeechRecognition: onerror - Erreur: ${event.error}, Message: ${event.message}`);
+                     recognitionActive = false; // Marquer comme inactif
+                     if (pttButton) pttButton.classList.remove('active');
+
+                     let userMessage = "Une erreur de reconnaissance vocale s'est produite.";
+                     switch (event.error) {
+                         case 'no-speech':
+                             userMessage = "Je n'ai rien entendu. Essayez de parler plus clairement.";
+                             break;
+                         case 'audio-capture':
+                             userMessage = "Problème technique avec le microphone. Vérifiez votre matériel ou les permissions système.";
+                             break;
+                         case 'not-allowed':
+                         case 'permission-denied':
+                             userMessage = "L'accès au microphone a été refusé. Veuillez l'autoriser dans les paramètres de votre navigateur pour ce site.";
+                             permissionGranted = false; // Mettre à jour l'état global
+                             updatePermissionStatus(userMessage, true);
+                             if (pttButton) pttButton.disabled = true;
+                             break;
+                         case 'network':
+                             userMessage = "Erreur réseau pendant la reconnaissance. Vérifiez votre connexion.";
+                             break;
+                         case 'aborted':
+                             userMessage = "Écoute arrêtée."; // Souvent normal quand on appelle stop()
+                             console.log("Reconnaissance arrêtée (aborted).");
+                             break;
+                         case 'service-not-allowed':
+                              userMessage = "Le service de reconnaissance vocale est désactivé ou non autorisé par votre système/navigateur.";
+                              break;
+                         default:
+                             userMessage = `Erreur inconnue (${event.error}): ${event.message || 'Aucun détail'}`;
+                     }
+
+                     // Si une promesse est en attente (speechPromiseCallbacks), la rejeter
+                     // Ne rejeter que si l'erreur n'est pas 'aborted' (qui est souvent normal)
+                     if (speechPromiseCallbacks && speechPromiseCallbacks.reject && event.error !== 'aborted') {
+                         console.log("Rejet de la promesse de reconnaissance suite à une erreur.");
+                         speechPromiseCallbacks.reject(new Error(userMessage));
+                     } else if (event.error !== 'aborted') {
+                          // Si l'erreur survient en dehors d'une écoute PTT ou si la promesse a déjà été traitée
+                          showErrorScreen(userMessage);
+                     }
+                     speechPromiseCallbacks = null; // Nettoyer les callbacks
+                     isListening = false; // S'assurer que l'état PTT est réinitialisé en cas d'erreur
+                 };
+
+                 recognition.onend = () => {
+                     console.log("SpeechRecognition: onend - Fin de l'écoute.");
+                     recognitionActive = false; // Marquer comme inactif
+                     if (pttButton) pttButton.classList.remove('active');
+
+                     // Si une promesse est en attente, la résoudre avec le transcript final accumulé
+                     if (speechPromiseCallbacks && speechPromiseCallbacks.resolve) {
+                         console.log("Résolution de la promesse de reconnaissance avec le transcript final.");
+                         speechPromiseCallbacks.resolve(currentTranscript.trim());
+                     } else {
+                          console.log("onend appelé mais pas de promesse en attente ou déjà résolue/rejetée.");
+                     }
+                     // isListening est déjà mis à false dans handlePttEnd ou onerror
+                     speechPromiseCallbacks = null; // Nettoyer les callbacks
+                 };
+
+             } catch (error) {
+                  console.error("Erreur lors de la création ou configuration de l'instance SpeechRecognition:", error);
+                  updatePermissionStatus("Erreur d'initialisation de la reconnaissance vocale.", true);
+                  speechApiAvailable = false;
+                  if (pttButton) pttButton.disabled = true;
+                  return false;
+             }
         }
 
-        return permissionGranted !== false; // Prêt si non explicitement refusé
+
+        return permissionGranted !== false; // Retourne true si la permission n'est pas explicitement refusée
     }
 
 
@@ -607,7 +634,68 @@ document.addEventListener('DOMContentLoaded', () => {
      // TODO: Ajouter listeners et logique pour prev/next track
 
     // Vision (Simulation)
-    captureButton?.addEventListener('click', () => {
+    // Vision (Implémentation réelle)
+    let videoStream = null; // Pour stocker le flux vidéo
+    const videoElement = document.createElement('video'); // Élément vidéo caché pour afficher le flux
+    videoElement.style.display = 'none'; // Cacher l'élément vidéo
+    document.body.appendChild(videoElement); // Ajouter au DOM
+
+    const canvasElement = document.createElement('canvas'); // Élément canvas pour capturer l'image
+    const context = canvasElement.getContext('2d');
+
+    // Fonction pour démarrer le flux vidéo
+    async function startVideoStream() {
+        if (videoStream) {
+            console.log("Video stream already active.");
+            return true; // Déjà démarré
+        }
+        try {
+            console.log("Attempting to start video stream...");
+            // getUserMedia pour la vidéo (permission déjà demandée à l'initialisation)
+            videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            videoElement.srcObject = videoStream;
+            // Attendre que les métadonnées de la vidéo soient chargées pour connaître la taille
+            await new Promise(resolve => videoElement.onloadedmetadata = resolve);
+            console.log("Video stream started successfully.");
+            return true;
+        } catch (err) {
+            console.error("Error starting video stream:", err);
+            let userMessage = "Impossible de démarrer le flux vidéo.";
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                userMessage = "L'accès à la caméra a été refusé. Veuillez l'autoriser dans les paramètres de votre navigateur pour ce site.";
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                 userMessage = "Aucune caméra trouvée.";
+            } else if (err.name === 'NotReadableError' || err.name === 'OverconstrainedError') {
+                 userMessage = "La caméra est peut-être déjà utilisée par une autre application.";
+            } else {
+                 userMessage = `Erreur technique caméra: ${err.message || err.name}`;
+            }
+            showErrorScreen(userMessage);
+            videoStream = null;
+            return false;
+        }
+    }
+
+    // Fonction pour arrêter le flux vidéo
+    function stopVideoStream() {
+        if (videoStream) {
+            console.log("Stopping video stream.");
+            videoStream.getTracks().forEach(track => track.stop());
+            videoStream = null;
+            videoElement.srcObject = null;
+        }
+    }
+
+    // Gérer le clic sur le bouton de capture
+    captureButton?.addEventListener('click', async () => {
+        console.log('Capture button clicked.');
+        // Assurez-vous que le flux vidéo est démarré avant de capturer
+        const streamStarted = await startVideoStream();
+        if (!streamStarted) {
+            console.warn("Cannot capture image: video stream not started.");
+            return; // Arrêter si le flux n'a pas pu démarrer
+        }
+
         const cameraPlaceholder = document.querySelector('.camera-placeholder');
         if (cameraPlaceholder) {
             // Simuler un flash
@@ -617,15 +705,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 cameraPlaceholder.style.backgroundColor = ''; // Réinitialiser
             }, 150);
         }
-        console.log('Capture d\'image (simulation)');
-        // TODO: Ajouter la logique réelle de capture d'image (ex: via getUserMedia API)
+
+        // Capturer l'image sur le canvas
+        canvasElement.width = videoElement.videoWidth;
+        canvasElement.height = videoElement.videoHeight;
+        context.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+
+        // Obtenir l'image au format Data URL (ou Blob si nécessaire)
+        const imageDataUrl = canvasElement.toDataURL('image/png');
+        console.log('Image captured:', imageDataUrl.substring(0, 50) + '...'); // Log partiel
+
+        // TODO: Envoyer imageDataUrl à Gemini Vision ou traiter localement
+        // Pour l'instant, afficher une confirmation et potentiellement l'image capturée
+
         // Afficher une confirmation sur l'écran de réponse
-        setTimeout(() => {
-            switchScreen('response');
-            queryTextElement.textContent = "Vision";
-             responseTextElement.innerHTML = "<p>Image capturée (simulation).</p>";
-        }, 300); // Petit délai après le "flash"
+        switchScreen('response');
+        queryTextElement.textContent = "Vision";
+        // Afficher l'image capturée (optionnel, peut être lourd)
+        // responseTextElement.innerHTML = `<p>Image capturée.</p><img src="${imageDataUrl}" alt="Captured Image" style="max-width:100%; height:auto;">`;
+        responseTextElement.innerHTML = "<p>Image capturée.</p>"; // Affichage simple
+
+        // Optionnel: Arrêter le flux vidéo après la capture si vous n'en avez plus besoin immédiatement
+        // stopVideoStream(); // Décommenter si vous voulez arrêter le flux après chaque capture
     });
+
+    // Assurez-vous d'arrêter le flux vidéo lorsque l'application se ferme ou change d'écran majeur si nécessaire
+    // Par exemple, ajouter un listener pour l'événement beforeunload ou gérer l'arrêt lors du changement d'écran
+    window.addEventListener('beforeunload', stopVideoStream);
+    // Ou lors du changement d'écran si le flux ne doit être actif que sur l'écran Vision
+    // (Cela nécessiterait une logique plus complexe dans switchScreen)
 
     // Appel API Gemini
     async function queryGemini(prompt) {
