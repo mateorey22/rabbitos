@@ -1,1 +1,167 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Rabbit R1 Web App - Cool Edition</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/css-spinner/1.1.1/css-spinner.min.css">
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+    <div class="device-container">
+        <div class="rabbit-device">
+            <!-- Audio Player Element -->
+            <audio id="audio-player" style="display: none;"></audio>
 
+            <div class="main-display" id="main-display">
+
+                <div class="screen home-screen active-screen" data-screen-name="home">
+                    <div class="status-bar">
+                        <span id="home-time">--:--:--</span>
+                        <span id="home-date">--/--/----</span>
+                        <span id="home-battery"><i class="fas fa-battery-half"></i> --%</span>
+                    </div>
+                    <div class="greeting">Bonjour...</div> <!-- Sera mis à jour par JS -->
+                    <div class="instruction">Maintenez pour parler</div>
+                    <div class="permission-status" id="permission-status">Vérification...</div>
+                </div>
+
+                <div class="screen listening-screen" data-screen-name="listening">
+                    <div class="listening-indicator">
+                        <div class="listening-text">Écoute en cours...</div>
+                        <div class="waveform">
+                            <span></span><span></span><span></span><span></span><span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="screen response-screen" data-screen-name="response">
+                    <div class="query-text" id="query-text"></div>
+                    <div class="response-text" id="response-text"></div>
+                    <button class="back-button" data-target-screen="home"><i class="fas fa-arrow-left"></i> Retour</button>
+                </div>
+
+                <div class="screen alarms-screen" data-screen-name="alarms">
+                    <h2>Alarmes</h2>
+                    <ul class="alarms-list">
+                        <li>7:00 - Réveil</li>
+                        <li>12:30 - Déjeuner</li>
+                        <li>18:00 - Sport</li>
+                    </ul>
+                    <button class="back-button" data-target-screen="home"><i class="fas fa-arrow-left"></i> Retour</button>
+                </div>
+
+                <div class="screen timer-screen" data-screen-name="timer">
+                    <h2>Minuteur</h2>
+                    <div class="timer-display" id="timer-display">00:00</div>
+                    <div class="timer-controls">
+                        <button class="timer-btn" id="timer-start" aria-label="Démarrer le minuteur">Démarrer</button>
+                        <button class="timer-btn" id="timer-reset" aria-label="Réinitialiser le minuteur">Réinitialiser</button>
+                    </div>
+                    <button class="back-button" data-target-screen="home"><i class="fas fa-arrow-left"></i> Retour</button>
+                </div>
+
+                <div class="screen music-screen" data-screen-name="music">
+                    <h2>Musique</h2>
+                    <div class="album-art" role="img" aria-label="Pochette d'album">
+                         <i class="fas fa-music"></i> <!-- Default Icon -->
+                    </div>
+                    <div class="track-info">
+                        <div class="track-title" id="track-title">Aucune musique</div>
+                        <div class="artist-name" id="artist-name">Appuyez sur Play</div>
+                    </div>
+                    <div class="music-controls">
+                        <button class="music-btn" id="prev-track" aria-label="Piste précédente"><i class="fas fa-step-backward"></i></button>
+                        <button class="music-btn" id="play-pause" aria-label="Lecture">
+                            <!-- Icons are absolutely positioned and toggled via CSS -->
+                            <i class="fas fa-play"></i>
+                            <i class="fas fa-pause"></i>
+                        </button>
+                        <button class="music-btn" id="next-track" aria-label="Piste suivante"><i class="fas fa-step-forward"></i></button>
+                    </div>
+                    <button class="back-button" data-target-screen="home"><i class="fas fa-arrow-left"></i> Retour</button>
+                </div>
+
+                <div class="screen vision-screen" data-screen-name="vision">
+                    <h2>Vision</h2>
+                    <div class="camera-container" id="vision-camera-container">
+                        <i class="fas fa-camera placeholder-icon"></i>
+                        <div class="glass-overlay vision-capture-overlay">
+                             <button class="capture-btn" id="vision-capture-btn" aria-label="Capturer l'image">
+                                 <i class="fas fa-camera"></i> Capturer
+                             </button>
+                        </div>
+                    </div>
+                    <button class="back-button" data-target-screen="home"><i class="fas fa-arrow-left"></i> Retour</button>
+                </div>
+
+                <div class="screen calendar-screen" data-screen-name="calendar">
+                    <h2>Calendrier</h2>
+                    <div class="calendar-placeholder">Placeholder Calendrier</div>
+                    <button class="back-button" data-target-screen="home"><i class="fas fa-arrow-left"></i> Retour</button>
+                </div>
+
+                <div class="screen notes-screen" data-screen-name="notes">
+                    <h2>Notes</h2>
+                    <textarea id="notes-textarea" class="notes-textarea" placeholder="Écrivez vos notes ici..."></textarea>
+                    <button id="save-note-btn" class="save-note-btn"><i class="fas fa-save"></i> Enregistrer</button>
+                    <div id="notes-feedback"></div>
+                    <button class="back-button" data-target-screen="home"><i class="fas fa-arrow-left"></i> Retour</button>
+                </div>
+
+                <div class="screen gallery-screen" data-screen-name="gallery">
+                    <h2>Galerie Photos</h2>
+                    <div id="gallery-container" class="gallery-container">
+                        <!-- Images ajoutées par JS -->
+                    </div>
+                    <p id="gallery-empty-msg" style="display: none;">Aucune photo capturée.</p>
+                    <button class="back-button" data-target-screen="home"><i class="fas fa-arrow-left"></i> Retour</button>
+                </div>
+
+                 <div class="screen look-at-this-screen" data-screen-name="look_and_ask">
+                     <h2>Regarder & Demander</h2>
+                     <div class="camera-container" id="look-camera-container">
+                         <i class="fas fa-camera placeholder-icon"></i>
+                         <div class="glass-overlay look-status-overlay" id="look-status-text">
+                             Visez, puis capturez l'image.
+                         </div>
+                         <div class="glass-overlay look-capture-overlay">
+                             <button class="look-capture-btn" id="look-capture-btn" aria-label="Capturer l'image pour l'IA">
+                                 <i class="fas fa-camera"></i> Capturer
+                             </button>
+                         </div>
+                     </div>
+                    <button class="back-button" data-target-screen="home"><i class="fas fa-arrow-left"></i> Retour</button>
+                 </div>
+
+                <div class="screen error-screen" data-screen-name="error">
+                    <h2><i class="fas fa-exclamation-triangle"></i> Erreur</h2>
+                    <p id="error-message">Une erreur s'est produite.</p>
+                    <button class="back-button" data-target-screen="home"><i class="fas fa-arrow-left"></i> Retour</button>
+                </div>
+
+            </div>
+
+            <div class="controls">
+                <button class="ptt-button" id="ptt-button" aria-label="Maintenir pour parler" aria-pressed="false" disabled>
+                    <i class="fas fa-microphone"></i>
+                </button>
+                <div class="scroll-controls">
+                    <button class="scroll-button" id="scroll-up" aria-label="Faire défiler vers le haut">
+                        <i class="fas fa-chevron-up"></i>
+                    </button>
+                    <button class="scroll-button" id="scroll-down" aria-label="Faire défiler vers le bas">
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/script.js"></script>
+</body>
+</html>
